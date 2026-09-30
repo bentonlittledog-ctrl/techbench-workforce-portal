@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Employee Timecard Dashboard</title>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+</head>
+<body>
+	<header style="display: flex; justify-content: space-between; align-items: center;">
+		<h2>Welcome back, <%= name %></h2>
+		<a href="/logout"><button style="background-color: #6c757d;">Log Out</button></a>
+	</header>
+
+<div style="background: #202b36; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #3b4b5a;">
+	<h3> Live Paycheck Calculator</h3>
+	<p>Your Base Pay Rate: <strong>$<%= rate %>/hrs</strong></p>
+	<p>Total Calculated Hours: <strong><%= totalHours %> hrs</strong></p>
+	<p style="font-size: 1.2em; color: #2ecc71;">Estimate Gross Pay: <strong>$<%= totalPayout %></strong></p>
+</div>	
+<form action="/punch" method="POST" style="display: flex; gap: 20px; margin-bottom: 30px;">
+	<button type="submit" name="action" value="CLOCK_IN"
+	<%= currentStatus === 'CLOCK_IN' ? 'disabled' : '' %>
+	style="background: <%= currentStatus === 'CLOCK-IN' ? '#1f4d2b' : '#2ea44f' %>; flex: 1; padding: 15px; font-weight: bold; cursor: <%= currentStatus === 'CLOCK_IN' ? 'not-allowed' : 'pointer' %>;">
+Punch In Clock
+</button>
+<button type="submit" name="action" value="CLOCK_OUT"
+<%= currentStatus === 'CLOCK_OUT' ? 'disabled' : '' %>
+style="background: <%= currentStatus === 'CLOCK_OUT' ? '#5a1921' : '#cb2431' %>; flex: 1; padding: 15px; font-weight: bold; cursor: <%= currentStatus === 'CLOCK_OUT' ? 'not-allowed' : 'pointer' %>;">
+		Punch Clock Out
+	</button>
+</form>
+
+<h3>Your Punch History</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Work-Describe</th>
+                <th>Hourly-Rate</th>
+                <th>Date</th>
+                <th>Time (Punch Span)</th>
+                <th>HOURS-Worked</th>
+                <th>Amount($)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% shifts.forEach(shift => { %>
+                <tr>
+                    <td><strong>GHS Tech Bench (<%= name %>)</strong></td>
+                    <td>$<%= rate %></td>
+                    <td><%= shift.date %></td>
+                    <td style="color: #8a99ad;"><%= shift.time %></td>
+                    <td style="font-weight: bold; color: #f1c40f;"><%= shift.hours %> hrs</td>
+                    <td style="font-weight: bold; color: #2ecc71;">$<%= shift.amount %></td>
+                </tr>
+            <% }) %>
+        </tbody>
+        <tfoot>
+            <tr style="background-color: #1a242f; font-weight: bold; border-top: 2px solid #455a64;">
+                <td colspan="4" style="text-align: right; text-transform: uppercase; padding-right: 20px;">
+                    <strong>Grand Totals Earned:</strong>
+                </td>
+                <td style="color: #f1c40f; font-size: 1.1em;"><%= totalHours %> hrs</td>
+                <td style="color: #2ecc71; font-size: 1.1em;">$<%= totalPayout %></td>
+            </tr>
+        </tfoot>
+    </table>
+

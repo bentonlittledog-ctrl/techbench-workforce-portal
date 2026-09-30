@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Login - TechBench Portal</title>
+	<!-- Drop a minimal dark dark-theme CSS framework directly from a CDN -->
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+</head>
+<body>
+	<main style="max-width: 420px; margin: 60px auto; padding: 10px;">
+		<h2 style="text-align: center; color: #2eec71;">TechBench Workforce Portal</h2>
+		<p style=" text-align: center; color:#8a99ad;">Please sign in to access your timecard dashboard.</p>
+
+		<!-- Dynamic error Banner (Triggers automatically if index.js sends an error string -->
+		<% if (error) { %>
+			<div style="background: rgba(203, 36, 49, 0.15); border: 1px solid #cb2341; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+				<span style="color: #ff6b6b; font-weight: bold;"><%= error %></span>
+			</div>
+		<% } %>
+
+		<!-- Core Sign-In Form (The action must match your app.post('/login') route) -->
+		<form action="/login" method="POST">
+			<label for="username">Username</label>
+			<input type="text" id="username" name="username" required placeholder="e.g. employee">
+
+			<label for="password">Password</label>
+			<input type="password" id="password" name="password" required placeholder="**********">
+
+			<button type="submit" style="width: 100%; padding: 12px; font-weight: bold; background-color: #2ea44f; margin-top: 15px;">
+				Secure Sign in
+			</button>
+		</form>
+	</main>
+</body>
+</html>
+
