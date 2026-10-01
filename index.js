@@ -88,7 +88,7 @@ app.get('/dashboard', async (req, res) => {
                         }
              	}
 
-                const employeeList = await db.all("SELECT id, name, username FROM employees WHERE is_admin = 0");
+                const employeeList = await db.all("SELECT id, name, username, is_admin FROM employees WHERE id != ?", [req.session.userID]);
 
                         res.render('admin_dashboard', {
                         	name: req.session.name,
@@ -210,16 +210,19 @@ app.post('/admin/users/add', async (req, res) => {
 });
 
 
-// 6.7 Administrative Panel - Remove an Employee profile
+// 6.7 Administrative Panel - Remove an Employee or Administrator profile
 app.post('/admin/users/remove', async (req, res) => {
         if (req.session.admin !== 1) return res.redirect('/');
         const { employeeId } = req.body;
         
-        // Prevent deleting yourself as the active root admin account
+        // Safety Shield: Strictly prevent deleting your own active session account profile
         if (parseInt(employeeId) === req.session.userID) return res.redirect('/dashboard');
 
+        // Delete their logs first to maintain relational integrity, then clear the user profile
+        await db.run("DELETE FROM logs WHERE employee_id = ?", [employeeId]);
         await db.run("DELETE FROM employees WHERE id = ?", [employeeId]);
         res.redirect('/dashboard');
+
 });
 
 
