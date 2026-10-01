@@ -43,19 +43,22 @@
             </form>
         </div>
 
-
         <!-- Form B: Terminate/Remove User Profile Account -->
         <div class="admin-box" style="flex: 1; min-width: 280px;">
-            <h3>Remove Employee Profile</h3>
+            <h3>Remove User Account Profile</h3>
             <form action="/admin/users/remove" method="POST">
                 <label for="removeSelect">Select Account to Delete:</label>
                 <select id="removeSelect" name="employeeId" required style="margin-bottom:15px; width:100%;">
                     <option value="">-- Choose Account to Terminate --</option>
                     <% users.forEach(user => { %>
-                        <option value="<%= user.id %>"><%= user.name %> (<%= user.username %>)</option>
+                        <option value="<%= user.id %>">
+                            <%= user.name %> (<%= user.username %>) (<%= user.is_admin === 1 ? 'Administrative Supervisor' : 'Regular Staff Worker' %>)
+                        </option>
                     <% }) %>
                 </select>
-                <button type="submit" style="background-color: #cb2431; width:100%;">Permanently Delete User Profile</button>
+                <button type="submit" style="background-color: #cb2431; width:100%; font-weight: bold; padding: 12px; border-radius: 4px; border: none; color: #fff;">
+                    Permanently Delete User Profile
+                </button>
             </form>
         </div>
     </div>
