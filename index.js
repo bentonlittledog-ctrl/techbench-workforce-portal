@@ -98,45 +98,72 @@ app.get('/dashboard', async (req, res) => {
                         	users: employeeList
                 });
         } else {
-
-                // 6.2 Employee view - to pull personal logs and run paycheck math
-                const myLogs = await db.all("SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? ORDER BY timestamp ASC", [req.session.userID]);
+                // 6.2 Employee view - pull personal logs splitting them by archive status
+                const activeLogs = await db.all("SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? AND archived = 0 ORDER BY timestamp ASC", [req.session.userID]);
+                const archivedLogs = await db.all("SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? AND archived = 1 ORDER BY timestamp ASC", [req.session.userID]);
                 const profile = await db.get("SELECT hourly_rate FROM employees where id = ?", [req.session.userID]);
 
-                let currentStatus = 'CLOCKED_OUT'; // Default for new employees with no logs
-                if (myLogs.length > 0) {
-                        const newestLog = await db.get("SELECT action FROM logs WHERE employee_id = ? ORDER BY timestamp DESC LIMIT 1", [req.session.userID]);
-                        currentStatus = newestLog.action; 
-                }
+                // Track button states from absolute newest log entry (even if archived)
+                let currentStatus = 'CLOCKED_OUT';
+                const newestLog = await db.get("SELECT action FROM logs WHERE employee_id = ? ORDER BY timestamp DESC LIMIT 1", [req.session.userID]);
+                if (newestLog) currentStatus = newestLog.action;
 
-                // 6.3 Dynamic Payment Calculator
-                let pairedShifts = [];
-                let totalBillableHours = 0;
-                let totalCompanyPayout = 0;
+                // 6.3 Dynamic Payment Calculator & Grouping Engine
+                let currentShifts = [];
+                let monthlyArchives = {}; // Container to group past shifts by month
 
-                for (let i = 0; i < myLogs.length; i++) {
-                        if (myLogs[i].action === 'CLOCK_IN' && myLogs[i+1] && myLogs[i+1].action === 'CLOCK_OUT') {
-                                let inTime = new Date(myLogs[i].timestamp);
-                                let outTime = new Date(myLogs[i+1].timestamp);
+                // Helper function to extract Month Name and Year
+                const getPayPeriodLabel = (dateObj) => {
+                        return dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                };
+
+                for (let i = 0; i < activeLogs.length; i++) {
+                        if (activeLogs[i].action === 'CLOCK_IN' && activeLogs[i+1] && activeLogs[i+1].action === 'CLOCK_OUT') {
+                                let inTime = new Date(activeLogs[i].timestamp);
+                                let outTime = new Date(activeLogs[i+1].timestamp);
                                 let shiftHours = (outTime - inTime) / (1000 * 60 * 60);
                                 let shiftAmount = shiftHours * profile.hourly_rate;
 
-                                totalBillableHours += shiftHours;
-                                totalCompanyPayout += shiftAmount;
-
-                                pairedShifts.push({
+                                currentShifts.push({
                                         date: inTime.toLocaleDateString(),
-					time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
+                                        time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
                                         hours: shiftHours.toFixed(2),
                                         amount: shiftAmount.toFixed(2)
                                 });
-                                i++; 
+                                i++;
                         }
                 }
 
+                for (let i = 0; i < archivedLogs.length; i++) {
+                        if (archivedLogs[i].action === 'CLOCK_IN' && archivedLogs[i+1] && archivedLogs[i+1].action === 'CLOCK_OUT') {
+                                let inTime = new Date(archivedLogs[i].timestamp);
+                                let outTime = new Date(archivedLogs[i+1].timestamp);
+                                let shiftHours = (outTime - inTime) / (1000 * 60 * 60);
+                                let shiftAmount = shiftHours * profile.hourly_rate;
+
+                                let periodLabel = getPayPeriodLabel(inTime);
+                                if (!monthlyArchives[periodLabel]) {
+                                        monthlyArchives[periodLabel] = [];
+                                }
+
+                                monthlyArchives[periodLabel].push({
+                                        date: inTime.toLocaleDateString(),
+                                        time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
+                                        hours: shiftHours.toFixed(2),
+                                        amount: shiftAmount.toFixed(2)
+                                });
+                                i++;
+                        }
+                }
+
+                // Calculate current period running totals dynamically
+                let totalBillableHours = currentShifts.reduce((sum, s) => sum + parseFloat(s.hours), 0);
+                let totalCompanyPayout = currentShifts.reduce((sum, s) => sum + parseFloat(s.amount), 0);
+
                 res.render('employee_dashboard', {
                         name: req.session.name,
-                        shifts: pairedShifts,
+                        shifts: currentShifts,
+                        archives: monthlyArchives, // Pass grouped monthly map down to dashboard
                         rate: profile.hourly_rate.toFixed(2),
                         totalHours: totalBillableHours.toFixed(2),
                         totalPayout: totalCompanyPayout.toFixed(2),
@@ -145,6 +172,7 @@ app.get('/dashboard', async (req, res) => {
                 });
         }
 }); // Correctly closes the entire master app.get('/dashboard') block
+
 
 // 6.4 Handle timeclock Button Punches
 app.post('/punch', async (req, res) => {
@@ -195,12 +223,12 @@ app.get('/logout', (req, res) => {
 app.post('/admin/users/add', async (req, res) => {
         if (req.session.admin !== 1) return res.redirect('/');
         const { username, password, name, hourly_rate, is_admin } = req.body;
-        
+
         try {
                 const hash = await bcrypt.hash(password, 10);
                 // Convert the dropdown selection value string ("1" or "0") to a true numeric database bit
                 const adminBit = parseInt(is_admin) === 1 ? 1 : 0;
-                
+
                 await db.run("INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin) VALUES (?, ?, ?, ?, ?)", 
                         [username, hash, name, parseFloat(hourly_rate), adminBit]);
                 res.redirect('/dashboard');
@@ -214,7 +242,7 @@ app.post('/admin/users/add', async (req, res) => {
 app.post('/admin/users/remove', async (req, res) => {
         if (req.session.admin !== 1) return res.redirect('/');
         const { employeeId } = req.body;
-        
+
         // Safety Shield: Strictly prevent deleting your own active session account profile
         if (parseInt(employeeId) === req.session.userID) return res.redirect('/dashboard');
 
