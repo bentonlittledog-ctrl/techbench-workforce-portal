@@ -4,258 +4,289 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const setupDb = require('./database');
 
-// 2.0 Congfigure Server Application
+// 2.0 Configure server application
 const app = express();
+
+// 2.05 Health check (before sessions) - handy for uptime pingers
+app.get('/health', (req, res) => res.send('ok'));
+
 app.use(express.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
 
 // 2.1 Secure session memory
+// Set SESSION_SECRET in Render's environment; the fallback keeps the app working until you do.
 app.use(session({
-	secret: 'techbench_secure_portal_key_2026',
-	resave: false,
-	saveUninitialized: false
+    secret: process.env.SESSION_SECRET || 'techbench_secure_portal_key_2026',
+    resave: false,
+    saveUninitialized: false
 }));
 
-// 3.0 Database Communication
+// 2.2 Lets async routes pass errors to the error handler instead of hanging or crashing
+const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Log stray errors instead of killing the whole server
+process.on('unhandledRejection', err => console.error('Unhandled rejection:', err));
+process.on('uncaughtException', err => console.error('Uncaught exception:', err));
+
+// 3.0 Database handle (set once the database is ready, before the server starts listening)
 let db;
-setupDb().then(database => {
-db = database;
-console.log("Timecard database connection active.");
-});
 
-// 4.0 Initial Entry Screen
+// 3.1 Helper: turn an ordered list of punches into completed shifts
+function pairShifts(logs, rate) {
+    const shifts = [];
+    for (let i = 0; i < logs.length; i++) {
+        if (logs[i].action === 'CLOCK_IN' && logs[i + 1] && logs[i + 1].action === 'CLOCK_OUT') {
+            const inTime = new Date(logs[i].timestamp);
+            const outTime = new Date(logs[i + 1].timestamp);
+            const hours = (outTime - inTime) / (1000 * 60 * 60);
+            shifts.push({
+                inTime,
+                shift: {
+                    date: inTime.toLocaleDateString(),
+                    time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
+                    hours: hours.toFixed(2),
+                    amount: (hours * rate).toFixed(2)
+                }
+            });
+            i++;
+        }
+    }
+    return shifts;
+}
+
+// 3.2 Helper: Month Name and Year label for archive grouping
+const getPayPeriodLabel = dateObj =>
+    dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+// 4.0 Initial entry screen
 app.get('/', (req, res) => {
-	if (req.session.userID){
-		return res.redirect('/dashboard');
-	}
-	res.render('login', { error: null });
+    if (req.session.userID) {
+        return res.redirect('/dashboard');
+    }
+    res.render('login', { error: null });
 });
 
-// 5.0 Login Submission Handshake
-app.post('/login', async (req, res) => {
-	const {username, password } = req.body;
-	const user = await db.get("SELECT * FROM employees WHERE username = ?", [username]);
+// 5.0 Login submission handshake
+app.post('/login', wrap(async (req, res) => {
+    const { username, password } = req.body;
+    const badLogin = 'Either the username or password you have provided is invalid.';
 
-if (user && await bcrypt.compare(password, user.password_hash)) {
-	req.session.userID = user.id;
-	req.session.name = user.name;
-	req.session.admin =user.is_admin;
-	return res.redirect ('/dashboard');
-}
-	res.render('login', { error: 'Either the username or password you have provided is invalid.' });
-});
+    if (typeof username !== 'string' || typeof password !== 'string') {
+        return res.render('login', { error: badLogin });
+    }
 
-// 6.0 Unified Portal Dashboard
-app.get('/dashboard', async (req, res) => {
-        if (!req.session.userID) return res.redirect('/');
+    const user = await db.get('SELECT * FROM employees WHERE username = ?', [username]);
 
-        if (req.session.admin === 1) {
-                // 6.1 Master Admin view - to retrieve every log in the system
-                const rawLogs = await db.all(`
-                        SELECT logs.id, logs.action, datetime(logs.timestamp, 'localtime') AS timestamp, employees.name, employees.hourly_rate
-                        FROM logs
-                        JOIN employees on logs.employee_id = employees.id
-                        ORDER BY employees.name ASC, logs.timestamp ASC
-                `);
+    if (user && await bcrypt.compare(password, user.password_hash)) {
+        req.session.userID = user.id;
+        req.session.name = user.name;
+        req.session.admin = user.is_admin;
+        return res.redirect('/dashboard');
+    }
+    res.render('login', { error: badLogin });
+}));
 
-                // Group separates punches into completed shifts matching their paper form
-                let pairedShifts = [];
-                let totalBillableHours = 0;
-                let totalCompanyPayout = 0;
+// 6.0 Unified portal dashboard
+app.get('/dashboard', wrap(async (req, res) => {
+    if (!req.session.userID) return res.redirect('/');
 
-                for (let i = 0; i < rawLogs.length; i++) {
-                        if (rawLogs[i].action === 'CLOCK_IN' && rawLogs[i+1] && rawLogs[i+1].action === 'CLOCK_OUT' && rawLogs[i].name === rawLogs[i+1].name) {
-                                let inTime = new Date(rawLogs[i].timestamp);
-                                let outTime = new Date(rawLogs[i+1].timestamp);
-                                let shiftHours = (outTime - inTime) / (1000 * 60 * 60);
-                                let shiftAmount = shiftHours * rawLogs[i].hourly_rate;
+    if (req.session.admin === 1) {
+        // 6.1 Master admin view - every log in the system
+        const rawLogs = await db.all(`
+            SELECT logs.id, logs.action, datetime(logs.timestamp, 'localtime') AS timestamp,
+                   employees.name, employees.hourly_rate
+            FROM logs
+            JOIN employees ON logs.employee_id = employees.id
+            ORDER BY employees.name ASC, logs.timestamp ASC, logs.id ASC
+        `);
 
-                                // Accumulate running totals for the table summary footer
-                                totalBillableHours += shiftHours;
-                                totalCompanyPayout += shiftAmount;
+        // Pair punches into completed shifts
+        const pairedShifts = [];
+        let totalBillableHours = 0;
+        let totalCompanyPayout = 0;
 
-                                pairedShifts.push({
-                        		name: rawLogs[i].name,
-                        		rate: rawLogs[i].hourly_rate, // Keep this a raw number here
-                       		 	date: inTime.toLocaleDateString(),
-                        		time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
-                        		hours: parseFloat(shiftHours.toFixed(2)),   // Change from text string to actual float number
-                        		amount: parseFloat(shiftAmount.toFixed(2)) // Change from text string to actual float number
-               			 });
+        for (let i = 0; i < rawLogs.length; i++) {
+            if (
+                rawLogs[i].action === 'CLOCK_IN' &&
+                rawLogs[i + 1] &&
+                rawLogs[i + 1].action === 'CLOCK_OUT' &&
+                rawLogs[i].name === rawLogs[i + 1].name
+            ) {
+                const inTime = new Date(rawLogs[i].timestamp);
+                const outTime = new Date(rawLogs[i + 1].timestamp);
+                const shiftHours = (outTime - inTime) / (1000 * 60 * 60);
+                const shiftAmount = shiftHours * rawLogs[i].hourly_rate;
 
+                totalBillableHours += shiftHours;
+                totalCompanyPayout += shiftAmount;
 
-                                i++;
-                        }
-             	}
-
-                const employeeList = await db.all("SELECT id, name, username, is_admin FROM employees WHERE id != ?", [req.session.userID]);
-
-                        res.render('admin_dashboard', {
-                        	name: req.session.name,
-                        	shifts: pairedShifts,
-                        	totalHours: totalBillableHours.toFixed(2),
-                        	totalPayout: totalCompanyPayout.toFixed(2),
-                        	users: employeeList
+                pairedShifts.push({
+                    name: rawLogs[i].name,
+                    rate: rawLogs[i].hourly_rate,
+                    date: inTime.toLocaleDateString(),
+                    time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
+                    hours: parseFloat(shiftHours.toFixed(2)),
+                    amount: parseFloat(shiftAmount.toFixed(2))
                 });
-        } else {
-                // 6.2 Employee view - pull personal logs splitting them by archive status
-                const activeLogs = await db.all("SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? AND archived = 0 ORDER BY timestamp ASC", [req.session.userID]);
-                const archivedLogs = await db.all("SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? AND archived = 1 ORDER BY timestamp ASC", [req.session.userID]);
-                const profile = await db.get("SELECT hourly_rate FROM employees where id = ?", [req.session.userID]);
 
-                // Track button states from absolute newest log entry (even if archived)
-                let currentStatus = 'CLOCKED_OUT';
-                const newestLog = await db.get("SELECT action FROM logs WHERE employee_id = ? ORDER BY timestamp DESC LIMIT 1", [req.session.userID]);
-                if (newestLog) currentStatus = newestLog.action;
-
-                // 6.3 Dynamic Payment Calculator & Grouping Engine
-                let currentShifts = [];
-                let monthlyArchives = {}; // Container to group past shifts by month
-
-                // Helper function to extract Month Name and Year
-                const getPayPeriodLabel = (dateObj) => {
-                        return dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-                };
-
-                for (let i = 0; i < activeLogs.length; i++) {
-                        if (activeLogs[i].action === 'CLOCK_IN' && activeLogs[i+1] && activeLogs[i+1].action === 'CLOCK_OUT') {
-                                let inTime = new Date(activeLogs[i].timestamp);
-                                let outTime = new Date(activeLogs[i+1].timestamp);
-                                let shiftHours = (outTime - inTime) / (1000 * 60 * 60);
-                                let shiftAmount = shiftHours * profile.hourly_rate;
-
-                                currentShifts.push({
-                                        date: inTime.toLocaleDateString(),
-                                        time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
-                                        hours: shiftHours.toFixed(2),
-                                        amount: shiftAmount.toFixed(2)
-                                });
-                                i++;
-                        }
-                }
-
-                for (let i = 0; i < archivedLogs.length; i++) {
-                        if (archivedLogs[i].action === 'CLOCK_IN' && archivedLogs[i+1] && archivedLogs[i+1].action === 'CLOCK_OUT') {
-                                let inTime = new Date(archivedLogs[i].timestamp);
-                                let outTime = new Date(archivedLogs[i+1].timestamp);
-                                let shiftHours = (outTime - inTime) / (1000 * 60 * 60);
-                                let shiftAmount = shiftHours * profile.hourly_rate;
-
-                                let periodLabel = getPayPeriodLabel(inTime);
-                                if (!monthlyArchives[periodLabel]) {
-                                        monthlyArchives[periodLabel] = [];
-                                }
-
-                                monthlyArchives[periodLabel].push({
-                                        date: inTime.toLocaleDateString(),
-                                        time: `${inTime.toLocaleTimeString()} - ${outTime.toLocaleTimeString()}`,
-                                        hours: shiftHours.toFixed(2),
-                                        amount: shiftAmount.toFixed(2)
-                                });
-                                i++;
-                        }
-                }
-
-                // Calculate current period running totals dynamically
-                let totalBillableHours = currentShifts.reduce((sum, s) => sum + parseFloat(s.hours), 0);
-                let totalCompanyPayout = currentShifts.reduce((sum, s) => sum + parseFloat(s.amount), 0);
-
-                res.render('employee_dashboard', {
-                        name: req.session.name,
-                        shifts: currentShifts,
-                        archives: monthlyArchives, // Pass grouped monthly map down to dashboard
-                        rate: profile.hourly_rate.toFixed(2),
-                        totalHours: totalBillableHours.toFixed(2),
-                        totalPayout: totalCompanyPayout.toFixed(2),
-                        currentStatus: currentStatus,
-                        error: null
-                });
+                i++;
+            }
         }
-}); // Correctly closes the entire master app.get('/dashboard') block
 
+        const employeeList = await db.all(
+            'SELECT id, name, username, is_admin FROM employees WHERE id != ?',
+            [req.session.userID]
+        );
 
-// 6.4 Handle timeclock Button Punches
-app.post('/punch', async (req, res) => {
-if (!req.session.userID) return res.redirect('/');
- const { action } = req.body;
+        return res.render('admin_dashboard', {
+            name: req.session.name,
+            shifts: pairedShifts,
+            totalHours: totalBillableHours.toFixed(2),
+            totalPayout: totalCompanyPayout.toFixed(2),
+            users: employeeList
+        });
+    }
 
-// Backend Shield: Check the last punch to prevent duplicate states
-const lastLog = await db.get("SELECT action FROM logs WHERE employee_id = ? ORDER BY timestamp DESC LIMIT 1", [req.session.userID]);
+    // 6.2 Employee view - personal logs split by archive status
+    const profile = await db.get('SELECT hourly_rate FROM employees WHERE id = ?', [req.session.userID]);
+    if (!profile) {
+        // Account was removed while the session was still active
+        return req.session.destroy(() => res.redirect('/'));
+    }
 
-if (lastLog && lastLog.action === action) {
-// If they attempt to create duplicate logs, it will deny
-const myLogs = await db.all("SELECT * FROM logs WHERE employee_id = ? ORDER BY timestamp desc", [req.session.userID]);
-const profile = await db.get("SELECT hourly_rate from employees where id = ?", [req.session.userID]);
+    const activeLogs = await db.all(
+        "SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? AND archived = 0 ORDER BY timestamp ASC, id ASC",
+        [req.session.userID]
+    );
+    const archivedLogs = await db.all(
+        "SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? AND archived = 1 ORDER BY timestamp ASC, id ASC",
+        [req.session.userID]
+    );
 
-let totalHours = 0;
-for (let i=0; i < myLogs.length -1; i++) {
-	if (myLogs[i].action === 'CLOCK_OUT' && myLogs[i+1].action === 'CLOCK_IN') {
-		let outTime = new Date(myLogs[i].timestamp);
-		let inTime = new Date(myLogs[i+1].timestamp);
-		totalHours += (outTime - inTime) / (1000 * 60 * 60);
-	}
-}
-const estimatedPay = totalHours * profile.hourly_rate;
+    // Button state comes from the newest log entry (even if archived)
+    let currentStatus = 'CLOCKED_OUT';
+    const newestLog = await db.get(
+        'SELECT action FROM logs WHERE employee_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1',
+        [req.session.userID]
+    );
+    if (newestLog) currentStatus = newestLog.action;
 
-res.render('employee_dashboard', {
-		name: req.session.name,
-		logs: myLogs,
-		rate: profile.hourly_rate,
-		hours: totalHours.toFixed(2),
-		pay: estimatedPay.toFixed(2),
-		currentStatus: lastLog.action,
-		error: "Error: requested action is unable to be completed. 2 or more duplicate clock-in / clock out entries are present."
-	});
-}
+    // 6.3 Payment calculator and grouping engine
+    const currentShifts = pairShifts(activeLogs, profile.hourly_rate).map(s => s.shift);
 
-await db.run("INSERT INTO logs (employee_id, action) VALUES (?, ?) ", [req.session.userID, action]);
-res.redirect('/dashboard');
+    const monthlyArchives = {};
+    for (const { inTime, shift } of pairShifts(archivedLogs, profile.hourly_rate)) {
+        const periodLabel = getPayPeriodLabel(inTime);
+        if (!monthlyArchives[periodLabel]) monthlyArchives[periodLabel] = [];
+        monthlyArchives[periodLabel].push(shift);
+    }
 
-});
+    const totalBillableHours = currentShifts.reduce((sum, s) => sum + parseFloat(s.hours), 0);
+    const totalCompanyPayout = currentShifts.reduce((sum, s) => sum + parseFloat(s.amount), 0);
 
-//6.5 Secure Session Termination
+    // One-time message left by /punch (e.g. duplicate punch)
+    const error = req.session.error || null;
+    delete req.session.error;
+
+    res.render('employee_dashboard', {
+        name: req.session.name,
+        shifts: currentShifts,
+        archives: monthlyArchives,
+        rate: profile.hourly_rate.toFixed(2),
+        totalHours: totalBillableHours.toFixed(2),
+        totalPayout: totalCompanyPayout.toFixed(2),
+        currentStatus: currentStatus,
+        error: error
+    });
+}));
+
+// 6.4 Handle timeclock button punches
+app.post('/punch', wrap(async (req, res) => {
+    if (!req.session.userID) return res.redirect('/');
+
+    const { action } = req.body;
+    if (action !== 'CLOCK_IN' && action !== 'CLOCK_OUT') {
+        return res.redirect('/dashboard');
+    }
+
+    // Backend shield: refuse duplicate states (two clock-ins or two clock-outs in a row)
+    const lastLog = await db.get(
+        'SELECT action FROM logs WHERE employee_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1',
+        [req.session.userID]
+    );
+
+    if (lastLog && lastLog.action === action) {
+        req.session.error = 'Error: requested action is unable to be completed. 2 or more duplicate clock-in / clock out entries are present.';
+        return res.redirect('/dashboard');
+    }
+
+    await db.run('INSERT INTO logs (employee_id, action) VALUES (?, ?)', [req.session.userID, action]);
+    res.redirect('/dashboard');
+}));
+
+// 6.5 Secure session termination
 app.get('/logout', (req, res) => {
-	req.session.destroy();
-	res.redirect('/');
+    req.session.destroy(() => res.redirect('/'));
 });
 
-// 6.6 Administrative Panel - Add a New Employee or Administrator Account
-app.post('/admin/users/add', async (req, res) => {
-        if (req.session.admin !== 1) return res.redirect('/');
-        const { username, password, name, hourly_rate, is_admin } = req.body;
+// 6.6 Admin panel - add a new employee or administrator
+app.post('/admin/users/add', wrap(async (req, res) => {
+    if (req.session.admin !== 1) return res.redirect('/');
+    const { username, password, name, hourly_rate, is_admin } = req.body;
 
-        try {
-                const hash = await bcrypt.hash(password, 10);
-                // Convert the dropdown selection value string ("1" or "0") to a true numeric database bit
-                const adminBit = parseInt(is_admin) === 1 ? 1 : 0;
+    try {
+        const hash = await bcrypt.hash(password, 10);
+        const adminBit = parseInt(is_admin) === 1 ? 1 : 0;
 
-                await db.run("INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin) VALUES (?, ?, ?, ?, ?)", 
-                        [username, hash, name, parseFloat(hourly_rate), adminBit]);
-                res.redirect('/dashboard');
-        } catch (err) {
-                res.redirect('/dashboard');
-        }
+        await db.run(
+            'INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin) VALUES (?, ?, ?, ?, ?)',
+            [username, hash, name, parseFloat(hourly_rate), adminBit]
+        );
+    } catch (err) {
+        console.error('Add user failed:', err.message);
+    }
+    res.redirect('/dashboard');
+}));
+
+// 6.7 Admin panel - remove an employee or administrator
+app.post('/admin/users/remove', wrap(async (req, res) => {
+    if (req.session.admin !== 1) return res.redirect('/');
+    const employeeId = parseInt(req.body.employeeId);
+
+    // Never allow deleting your own active account
+    if (!employeeId || employeeId === req.session.userID) return res.redirect('/dashboard');
+
+    // Delete logs and profile together so a failure can't leave half the data behind
+    await db.run('BEGIN');
+    try {
+        await db.run('DELETE FROM logs WHERE employee_id = ?', [employeeId]);
+        await db.run('DELETE FROM employees WHERE id = ?', [employeeId]);
+        await db.run('COMMIT');
+    } catch (err) {
+        await db.run('ROLLBACK');
+        throw err;
+    }
+    res.redirect('/dashboard');
+}));
+
+// 7.0 Error handler (must come after all routes)
+app.use((err, req, res, next) => {
+    console.error('Route error:', err);
+    if (res.headersSent) return next(err);
+    res.status(500).send('Something went wrong. Please go back and try again.');
 });
 
-
-// 6.7 Administrative Panel - Remove an Employee or Administrator profile
-app.post('/admin/users/remove', async (req, res) => {
-        if (req.session.admin !== 1) return res.redirect('/');
-        const { employeeId } = req.body;
-
-        // Safety Shield: Strictly prevent deleting your own active session account profile
-        if (parseInt(employeeId) === req.session.userID) return res.redirect('/dashboard');
-
-        // Delete their logs first to maintain relational integrity, then clear the user profile
-        await db.run("DELETE FROM logs WHERE employee_id = ?", [employeeId]);
-        await db.run("DELETE FROM employees WHERE id = ?", [employeeId]);
-        res.redirect('/dashboard');
-
-});
-
-
-// X App Testing
+// 8.0 Start the server only after the database is ready
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-        console.log(`Server engine live and listening on port ${PORT}`);
-});
+setupDb()
+    .then(database => {
+        db = database;
+        console.log('Timecard database connection active.');
+        app.listen(PORT, () => {
+            console.log(`Server engine live and listening on port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error('Failed to start:', err);
+        process.exit(1);
+    });
