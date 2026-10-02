@@ -269,6 +269,8 @@ app.post('/admin/users/remove', wrap(async (req, res) => {
     res.redirect('/dashboard');
 }));
 
+require('./extras')(app, () => db, wrap);
+
 // 7.0 Error handler (must come after all routes)
 app.use((err, req, res, next) => {
     console.error('Route error:', err);
