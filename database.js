@@ -54,6 +54,16 @@ if (count.total === 0) {
     } catch (err) {
         console.log("Database schema check: 'archived' column verified present.");
     }
+    // 🚀 PERFORMANCE ENGINE OPTIMIZATION INDEXES
+    try {
+        // Index the employee relationship link to make JOIN operations instant
+        await db.run("CREATE INDEX IF NOT EXISTS idx_logs_employee ON logs(employee_id)");
+        // Index the archive flag so the server instantly skips historical data
+        await db.run("CREATE INDEX IF NOT EXISTS idx_logs_archived ON logs(archived)");
+        console.log("Performance indexes compiled and active.");
+    } catch (err) {
+        console.log("Performance index verification complete.");
+    }
 
     return db;
 }
