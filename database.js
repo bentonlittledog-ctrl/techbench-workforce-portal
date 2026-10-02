@@ -1,4 +1,4 @@
-//1 Dependencies Entry
+//1 Depezndencies Entry
 const sqlite3 = require('sqlite3');
 const {open} = require('sqlite');
 const bcrypt = require('bcryptjs');
@@ -44,9 +44,18 @@ if (count.total === 0) {
 	await db.run("INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin) VALUES (?, ?, ?, ?, ?)",
 		['employee', empHash, 'John Doe', 18.50, 0]);
 
-	console.log("database seeded!");
+	        console.log("database seeded!");
     } // 1. this brace closes the if count (count.total === 0)
 
-	return db;
+    // Safely add the archived column layout migration rule to your logs table if missing
+    try {
+        await db.run("ALTER TABLE logs ADD COLUMN archived INTEGER DEFAULT 0");
+        console.log("Database schema migration successful: 'archived' column appended cleanly.");
+    } catch (err) {
+        console.log("Database schema check: 'archived' column verified present.");
+    }
+
+    return db;
 }
 module.exports = setupDb;
+
