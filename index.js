@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const setupDb = require('./database');
+const { visibleSql, canManage, manageableAccounts, allowedUnits } = require('./scope');
 
 // 2.0 Configure server application
 const app = express();
@@ -25,6 +26,15 @@ app.use(session({
 
 // 2.2 Lets async routes pass errors to the error handler instead of hanging or crashing
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// 2.3 Logins created before this version get their district flag filled in
+app.use(wrap(async (req, res, next) => {
+    if (req.session.userID && req.session.district === undefined) {
+        const u = await db.get('SELECT is_district FROM employees WHERE id = ?', [req.session.userID]);
+        req.session.district = u ? u.is_district : 0;
+    }
+    next();
+}));
 
 // Log stray errors instead of killing the whole server
 process.on('unhandledRejection', err => console.error('Unhandled rejection:', err));
@@ -83,6 +93,7 @@ app.post('/login', wrap(async (req, res) => {
         req.session.userID = user.id;
         req.session.name = user.name;
         req.session.admin = user.is_admin;
+        req.session.district = user.is_district;
         return res.redirect('/dashboard');
     }
     res.render('login', { error: badLogin });
@@ -94,13 +105,15 @@ app.get('/dashboard', wrap(async (req, res) => {
 
     if (req.session.admin === 1) {
         // 6.1 Master admin view - every log in the system
+        const scope = visibleSql(req.session, 'employees');
         const rawLogs = await db.all(`
             SELECT logs.id, logs.action, datetime(logs.timestamp, 'localtime') AS timestamp,
                    employees.name, employees.hourly_rate
             FROM logs
             JOIN employees ON logs.employee_id = employees.id
+            WHERE ${scope.sql}
             ORDER BY employees.name ASC, logs.timestamp ASC, logs.id ASC
-        `);
+        `, scope.params);
 
         // Pair punches into completed shifts
         const pairedShifts = [];
@@ -135,17 +148,17 @@ app.get('/dashboard', wrap(async (req, res) => {
             }
         }
 
-        const employeeList = await db.all(
-            'SELECT id, name, username, is_admin FROM employees WHERE id != ?',
-            [req.session.userID]
-        );
+        const employeeList = (await manageableAccounts(db, req.session)).filter(u => u.id !== req.session.userID);
+        const units = await allowedUnits(db, req.session);
 
         return res.render('admin_dashboard', {
             name: req.session.name,
             shifts: pairedShifts,
             totalHours: totalBillableHours.toFixed(2),
             totalPayout: totalCompanyPayout.toFixed(2),
-            users: employeeList
+            users: employeeList,
+            units: units,
+            isDistrict: req.session.district === 1
         });
     }
 
@@ -231,37 +244,58 @@ app.get('/logout', (req, res) => {
     req.session.destroy(() => res.redirect('/'));
 });
 
-// 6.6 Admin panel - add a new employee or administrator
+// 6.6 Admin panel - add an employee, manager or district administrator
 app.post('/admin/users/add', wrap(async (req, res) => {
     if (req.session.admin !== 1) return res.redirect('/');
-    const { username, password, name, hourly_rate, is_admin } = req.body;
+    const { username, password, name, hourly_rate, is_admin, unit } = req.body;
+    const isDistrict = req.session.district === 1;
 
+    if (!username || !name || typeof password !== 'string' || !password) return res.redirect('/dashboard');
+
+    // 0 = employee, 1 = manager, 2 = district administrator.
+    // Only district administrators can create managers or other district administrators.
+    const role = isDistrict ? Math.min(Math.max(parseInt(is_admin, 10) || 0, 0), 2) : 0;
+    const chosen = (await allowedUnits(db, req.session)).find(u => u.value === unit);
+    if (role < 2 && !chosen) return res.redirect('/dashboard');
+
+    const hash = await bcrypt.hash(password, 10);
+    await db.run('BEGIN');
     try {
-        const hash = await bcrypt.hash(password, 10);
-        const adminBit = parseInt(is_admin) === 1 ? 1 : 0;
-
-        await db.run(
-            'INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin) VALUES (?, ?, ?, ?, ?)',
-            [username, hash, name, parseFloat(hourly_rate), adminBit]
+        const added = await db.run(
+            'INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin, is_district) VALUES (?, ?, ?, ?, ?, ?)',
+            [username, hash, name, parseFloat(hourly_rate), role >= 1 ? 1 : 0, role === 2 ? 1 : 0]
         );
+        if (role === 0) {
+            await db.run('INSERT INTO memberships (employee_id, site_id, program_id) VALUES (?, ?, ?)',
+                [added.lastID, chosen.site_id, chosen.program_id]);
+        } else if (role === 1) {
+            await db.run('INSERT INTO scopes (employee_id, site_id, program_id) VALUES (?, ?, ?)',
+                [added.lastID, chosen.site_id, chosen.program_id]);
+        }
+        await db.run('COMMIT');
     } catch (err) {
+        await db.run('ROLLBACK');
         console.error('Add user failed:', err.message);
     }
     res.redirect('/dashboard');
 }));
 
-// 6.7 Admin panel - remove an employee or administrator
+// 6.7 Admin panel - remove an account (only accounts inside the admin's own areas)
 app.post('/admin/users/remove', wrap(async (req, res) => {
     if (req.session.admin !== 1) return res.redirect('/');
-    const employeeId = parseInt(req.body.employeeId);
+    const employeeId = parseInt(req.body.employeeId, 10);
 
     // Never allow deleting your own active account
     if (!employeeId || employeeId === req.session.userID) return res.redirect('/dashboard');
+    if (!(await canManage(db, req.session, employeeId))) return res.redirect('/dashboard');
 
-    // Delete logs and profile together so a failure can't leave half the data behind
+    // Remove everything tied to the account together, or nothing at all
     await db.run('BEGIN');
     try {
         await db.run('DELETE FROM logs WHERE employee_id = ?', [employeeId]);
+        await db.run('DELETE FROM time_requests WHERE employee_id = ?', [employeeId]);
+        await db.run('DELETE FROM memberships WHERE employee_id = ?', [employeeId]);
+        await db.run('DELETE FROM scopes WHERE employee_id = ?', [employeeId]);
         await db.run('DELETE FROM employees WHERE id = ?', [employeeId]);
         await db.run('COMMIT');
     } catch (err) {
@@ -274,7 +308,7 @@ app.post('/admin/users/remove', wrap(async (req, res) => {
 require('./extras')(app, () => db, wrap);
 
 require('./foundation').mount(app, () => db, wrap);
-
+require('./scope').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)
 app.use((err, req, res, next) => {

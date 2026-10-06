@@ -7,6 +7,7 @@ const session = require('express-session');
 const sqlite3 = require('sqlite3');
 const bcrypt = require('bcryptjs');
 const ejs = require('ejs');
+const { canManage, manageableAccounts } = require('./scope');
 
 const SESSION_HOURS = 12;   // how long a login lasts
 const BACKUP_KEEP = 14;     // how many daily backups to keep on the disk
@@ -122,9 +123,6 @@ const RESET_MESSAGES = {
 };
 
 function mount(app, getDb, wrap) {
-    // Permission hook: later this will check the manager's site/program scope.
-    const canManage = (req, targetId) => req.session.admin === 1;
-
     // Daily backup (first check 15 seconds after start, then hourly) and old-session cleanup
     const tick = async () => {
         try {
@@ -141,7 +139,7 @@ function mount(app, getDb, wrap) {
 
     // Download a fresh copy of the whole database (admins only)
     app.get('/admin/backup', wrap(async (req, res) => {
-        if (req.session.admin !== 1) return res.redirect('/');
+        if (req.session.district !== 1) return res.redirect('/');
         const db = getDb();
         const tmp = path.join(os.tmpdir(), 'timecards-download-' + Date.now() + '.db');
         await db.run('VACUUM INTO ?', [tmp]);
@@ -153,7 +151,7 @@ function mount(app, getDb, wrap) {
     // Admin password reset
     app.get('/admin/users/reset', wrap(async (req, res) => {
         if (req.session.admin !== 1) return res.redirect('/');
-        const users = await getDb().all('SELECT id, name, username FROM employees ORDER BY name');
+        const users = await manageableAccounts(getDb(), req.session);
         res.send(ejs.render(RESET_TPL, {
             users,
             message: RESET_MESSAGES[req.query.msg] || null
@@ -172,7 +170,7 @@ function mount(app, getDb, wrap) {
         if (password !== confirm) return res.redirect('/admin/users/reset?msg=mismatch');
 
         const target = await db.get('SELECT id FROM employees WHERE id = ?', [id]);
-        if (!target || !canManage(req, id)) return res.redirect('/admin/users/reset?msg=none');
+        if (!target || !(await canManage(db, req.session, id))) return res.redirect('/admin/users/reset?msg=none');
 
         const hash = await bcrypt.hash(password, 10);
         await db.run('UPDATE employees SET password_hash = ? WHERE id = ?', [hash, id]);

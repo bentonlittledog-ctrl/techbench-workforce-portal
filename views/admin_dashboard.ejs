@@ -8,7 +8,7 @@
     <style>
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #455a64; padding: 10px; text-align: center; }
-        th { background-color: #202b36; font-weight: bold; text-transform: uppercase; } 
+        th { background-color: #202b36; font-weight: bold; text-transform: uppercase; }
         .admin-box { background: #202b36; padding: 15px; border-radius: 6px; border: 1px solid #455a64; margin-bottom: 20px; }
     </style>
 </head>
@@ -17,12 +17,12 @@
         <h2>Administrative Operations: <%= name %></h2>
         <a href="/logout"><button style="background-color: #6c757d;">Log Out</button></a>
     </header>
-<p><a href="/admin/users/reset">Reset a password</a> | <a href="/admin/backup">Download database backup</a></p>
-<p><a href="/admin/requests">Pending hour requests</a> | <a href="/timecards">Past timecards</a></p>
+    <p><a href="/admin/requests">Pending hour requests</a> | <a href="/timecards">Past timecards</a></p>
+    <p><a href="/admin/users/reset">Reset a password</a><% if (isDistrict) { %> | <a href="/admin/org">Sites, programs and assignments</a> | <a href="/admin/backup">Download database backup</a><% } %></p>
 
     <!-- User Management Operations Center Panel -->
     <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
-                <!-- Form A: Add User Profile Account -->
+        <!-- Form A: Add User Profile Account -->
         <div class="admin-box" style="flex: 1; min-width: 280px;">
             <h3>Add User Profile Account</h3>
             <form action="/admin/users/add" method="POST">
@@ -30,17 +30,31 @@
                 <input type="text" name="username" placeholder="Username" required style="margin-bottom:10px; width:100%;">
                 <input type="password" name="password" placeholder="Password" required style="margin-bottom:10px; width:100%;">
                 <input type="number" name="hourly_rate" step="0.01" placeholder="Hourly Rate ($/hr)" required style="margin-bottom:10px; width:100%;">
-                
-                  <!-- Role Assignment Dropdown Feature Selection -->
-                <label for="roleSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
-                        Assign System Security Role:
+
+                <label for="unitSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
+                    Site / Program:
                 </label>
-                <select id="roleSelect" name="is_admin" required style="width: 100%; padding: 10px; margin-bottom: 20px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
-                        <option value="0">Regular Staff Worker (Timesheet Only)</option>
-                        <option value="1">Administrative Supervisor (Full Operations Access)</option>
+                <select id="unitSelect" name="unit" style="width: 100%; padding: 10px; margin-bottom: 10px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
+                    <option value="">-- Choose site / program --</option>
+                    <% units.forEach(u => { %>
+                        <option value="<%= u.value %>"><%= u.label %></option>
+                    <% }) %>
                 </select>
 
-                
+                <% if (isDistrict) { %>
+                    <label for="roleSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
+                        Assign System Security Role:
+                    </label>
+                    <select id="roleSelect" name="is_admin" required style="width: 100%; padding: 10px; margin-bottom: 20px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
+                        <option value="0">Regular Staff Worker (Timesheet Only)</option>
+                        <option value="1">Manager (manages the site / program chosen above)</option>
+                        <option value="2">District Administrator (everything; no site needed)</option>
+                    </select>
+                <% } else { %>
+                    <input type="hidden" name="is_admin" value="0">
+                    <p style="font-size: 0.9em;">New accounts you add are regular staff in the site / program above.</p>
+                <% } %>
+
                 <button type="submit" style="background-color: #2ea44f; width:100%; font-weight: bold;">Save New Roster Account</button>
             </form>
         </div>
@@ -54,7 +68,7 @@
                     <option value="">-- Choose Account to Terminate --</option>
                     <% users.forEach(user => { %>
                         <option value="<%= user.id %>">
-                            <%= user.name %> (<%= user.username %>) (<%= user.is_admin === 1 ? 'Administrative Supervisor' : 'Regular Staff Worker' %>)
+                            <%= user.name %> (<%= user.username %>) (<%= user.is_district ? 'District Administrator' : (user.is_admin ? 'Manager' : 'Regular Staff Worker') %>)
                         </option>
                     <% }) %>
                 </select>
@@ -68,7 +82,7 @@
     <hr style="border-color: #455a64; margin: 30px 0;">
 
     <h3>Digital Paysheet Transcription View</h3>
-    
+
     <!-- Filter Dropdown Selection Matrix Form Tool -->
     <div style="margin-bottom: 20px;">
         <label for="employeeFilter" style="font-weight: bold; margin-right: 10px;">Filter View by Employee:</label>
@@ -124,7 +138,7 @@
 
             rows.forEach(row => {
                 const rowName = row.getAttribute("data-name");
-                
+
                 // Pull true numbers straight from text data cells
                 const hoursVal = parseFloat(row.cells[4].textContent) || 0;
                 const payoutVal = parseFloat(row.cells[5].textContent.replace('$', '')) || 0;
@@ -138,7 +152,7 @@
                 }
             });
 
-            // Update footer totals calculation dynamically right inside viewport frame text stream
+            // Update footer totals calculation dynamically
             document.getElementById("totalHoursCell").textContent = calculatedHours.toFixed(2) + " hrs";
             document.getElementById("totalPayoutCell").textContent = "$" + calculatedPayout.toFixed(2);
         }

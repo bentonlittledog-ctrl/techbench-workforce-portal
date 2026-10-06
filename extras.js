@@ -1,6 +1,7 @@
 // extras.js - missed-hours requests (with admin approval) and past timecards.
 // Mounted from index.js with one line; creates its own table on first use.
 const ejs = require('ejs');
+const { visibleSql, canManage } = require('./scope');
 
 const MAX_DAYS_BACK = 45;    // how far back an employee may request missed hours
 const MAX_SHIFT_HOURS = 16;  // longest single request allowed
@@ -207,19 +208,21 @@ module.exports = function (app, getDb, wrap) {
         const messages = {
             own: "You can't approve your own request. Ask another administrator.",
             conflict: 'That request overlaps existing punches for this employee. Deny it and ask them to submit corrected times.',
+            scope: 'That request is outside the areas you manage.',
             done: 'Done.'
         };
+        const scope = visibleSql(req.session, 'e');
         const pending = (await db.all(`
             SELECT r.*, e.name FROM time_requests r
             JOIN employees e ON e.id = r.employee_id
-            WHERE r.status = 'PENDING' ORDER BY r.id ASC
-        `)).map(r => ({ ...r, hours: spanHours(r) }));
+            WHERE r.status = 'PENDING' AND ${scope.sql} ORDER BY r.id ASC
+        `, scope.params)).map(r => ({ ...r, hours: spanHours(r) }));
         const reviewed = (await db.all(`
             SELECT r.*, e.name, a.name AS reviewer FROM time_requests r
             JOIN employees e ON e.id = r.employee_id
             LEFT JOIN employees a ON a.id = r.reviewed_by
-            WHERE r.status != 'PENDING' ORDER BY r.reviewed_at DESC, r.id DESC LIMIT 20
-        `)).map(r => ({ ...r, hours: spanHours(r) }));
+            WHERE r.status != 'PENDING' AND ${scope.sql} ORDER BY r.reviewed_at DESC, r.id DESC LIMIT 20
+        `, scope.params)).map(r => ({ ...r, hours: spanHours(r) }));
         res.send(ejs.render(ADMIN_TPL, { pending, reviewed, message: messages[req.query.msg] || null }));
     }));
 
@@ -230,6 +233,7 @@ module.exports = function (app, getDb, wrap) {
         const r = await db.get("SELECT * FROM time_requests WHERE id = ? AND status = 'PENDING'", [id]);
         if (!r) return res.redirect('/admin/requests');
         if (r.employee_id === req.session.userID) return res.redirect('/admin/requests?msg=own');
+        if (!(await canManage(db, req.session, r.employee_id))) return res.redirect('/admin/requests?msg=scope');
 
         const start = r.work_date + ' ' + r.start_time + ':00';
         const end = r.work_date + ' ' + r.end_time + ':00';
@@ -273,6 +277,8 @@ module.exports = function (app, getDb, wrap) {
     app.post('/admin/requests/:id/deny', wrap(async (req, res) => {
         if (needAdmin(req, res)) return;
         const db = await database();
+        const target = await db.get('SELECT employee_id FROM time_requests WHERE id = ?', [parseInt(req.params.id, 10)]);
+        if (target && !(await canManage(db, req.session, target.employee_id))) return res.redirect('/admin/requests?msg=scope');
         await db.run(
             "UPDATE time_requests SET status = 'DENIED', reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ? AND status = 'PENDING'",
             [req.session.userID, parseInt(req.params.id, 10)]
@@ -298,7 +304,8 @@ module.exports = function (app, getDb, wrap) {
         let empId = req.session.userID;
         let employees = [];
         if (isAdmin) {
-            employees = await db.all('SELECT id, name FROM employees ORDER BY name');
+            const vis = visibleSql(req.session, 'e');
+            employees = await db.all(`SELECT e.id, e.name FROM employees e WHERE (${vis.sql} OR e.id = ?) ORDER BY e.name`, [...vis.params, req.session.userID]);
             const wanted = parseInt(req.query.employeeId, 10);
             if (wanted && employees.some(e => e.id === wanted)) empId = wanted;
         }
