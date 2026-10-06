@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Log</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #455a64; padding: 8px; text-align: left; font-size: 0.9em; }
+        th { background-color: #202b36; text-transform: uppercase; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h2>Audit Log</h2>
+    <p>Every timecard change: who made it, which employee, what changed, and why. Showing the latest 300.</p>
+    <table>
+        <thead><tr><th>When</th><th>Changed by</th><th>Employee</th><th>Type</th><th>What changed</th><th>Reason</th></tr></thead>
+        <tbody>
+            <% rows.forEach(r => { %>
+                <tr>
+                    <td><%= r.when %></td>
+                    <td><%= r.actor_name %></td>
+                    <td><%= r.target_name %></td>
+                    <td><%= r.action.replace('_', ' ').toLowerCase() %></td>
+                    <td><%= r.details %></td>
+                    <td><%= r.reason %></td>
+                </tr>
+            <% }) %>
+            <% if (!rows.length) { %><tr><td colspan="6">No changes have been made yet.</td></tr><% } %>
+        </tbody>
+    </table>
+</body>
+</html>

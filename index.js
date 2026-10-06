@@ -322,6 +322,8 @@ require('./extras')(app, () => db, wrap);
 
 require('./foundation').mount(app, () => db, wrap);
 require('./scope').mount(app, () => db, wrap);
+require('./editing')(app, () => db, wrap);
+require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)
 app.use((err, req, res, next) => {

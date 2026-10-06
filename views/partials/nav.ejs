@@ -26,10 +26,13 @@
       <li><a href="/requests/new" class="<%= nav.path.indexOf('/requests') === 0 ? 'active' : '' %>">Request missed hours</a></li>
     <% } %>
     <li><a href="/timecards" class="<%= nav.path === '/timecards' ? 'active' : '' %>">Past timecards</a></li>
+    <li><a href="/timecards/print" class="<%= nav.path === '/timecards/print' ? 'active' : '' %>">Print timecard</a></li>
     <% if (nav.admin) { %>
+      <li><a href="/admin/shifts" class="<%= nav.path.indexOf('/admin/shifts') === 0 ? 'active' : '' %>">Edit timecards</a></li>
       <li><a href="/admin/users/reset" class="<%= nav.path === '/admin/users/reset' ? 'active' : '' %>">Reset password</a></li>
     <% } %>
     <% if (nav.district) { %>
+      <li><a href="/admin/audit" class="<%= nav.path === '/admin/audit' ? 'active' : '' %>">Audit log</a></li>
       <li><a href="/admin/org" class="<%= nav.path === '/admin/org' ? 'active' : '' %>">Sites &amp; assignments</a></li>
       <li><a href="/admin/backup">Backup</a></li>
     <% } %>
