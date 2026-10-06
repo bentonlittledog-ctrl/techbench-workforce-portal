@@ -15,7 +15,9 @@ app.set('view engine', 'ejs');
 
 // 2.1 Secure session memory
 // Set SESSION_SECRET in Render's environment; the fallback keeps the app working until you do.
+const { SqliteStore } = require('./foundation');
 app.use(session({
+    store: new SqliteStore(() => db),
     secret: process.env.SESSION_SECRET || 'techbench_secure_portal_key_2026',
     resave: false,
     saveUninitialized: false
@@ -270,6 +272,9 @@ app.post('/admin/users/remove', wrap(async (req, res) => {
 }));
 
 require('./extras')(app, () => db, wrap);
+
+require('./foundation').mount(app, () => db, wrap);
+
 
 // 7.0 Error handler (must come after all routes)
 app.use((err, req, res, next) => {
