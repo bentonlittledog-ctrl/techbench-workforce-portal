@@ -1,38 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Employee Timecard Dashboard</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Timecard Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
 </head>
 <body>
-	<header style="display: flex; justify-content: space-between; align-items: center;">
-		<h2>Welcome back, <%= name %></h2>
-		<a href="/logout"><button style="background-color: #6c757d;">Log Out</button></a>
-	</header>
-<p><a href="/requests/new">Request missed hours</a> | <a href="/timecards">Past timecards</a></p>
+    <%- include('partials/nav') %>
+    <h2>Welcome back, <%= name %></h2>
 
-<div style="background: #202b36; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #3b4b5a;">
-	<h3> Live Paycheck Calculator</h3>
-	<p>Your Base Pay Rate: <strong>$<%= rate %>/hrs</strong></p>
-	<p>Total Calculated Hours: <strong><%= totalHours %> hrs</strong></p>
-	<p style="font-size: 1.2em; color: #2ecc71;">Estimate Gross Pay: <strong>$<%= totalPayout %></strong></p>
-</div>	
-<form action="/punch" method="POST" style="display: flex; gap: 20px; margin-bottom: 30px;">
-	<button type="submit" name="action" value="CLOCK_IN"
-	<%= currentStatus === 'CLOCK_IN' ? 'disabled' : '' %>
-	style="background: <%= currentStatus === 'CLOCK-IN' ? '#1f4d2b' : '#2ea44f' %>; flex: 1; padding: 15px; font-weight: bold; cursor: <%= currentStatus === 'CLOCK_IN' ? 'not-allowed' : 'pointer' %>;">
-Punch In Clock
-</button>
-<button type="submit" name="action" value="CLOCK_OUT"
-<%= currentStatus === 'CLOCK_OUT' ? 'disabled' : '' %>
-style="background: <%= currentStatus === 'CLOCK_OUT' ? '#5a1921' : '#cb2431' %>; flex: 1; padding: 15px; font-weight: bold; cursor: <%= currentStatus === 'CLOCK_OUT' ? 'not-allowed' : 'pointer' %>;">
-		Punch Clock Out
-	</button>
-</form>
+    <% if (error) { %>
+        <p style="color: #ff6b6b;"><strong><%= error %></strong></p>
+    <% } %>
 
-<h3>Your Punch History</h3>
+    <div style="background: #202b36; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #3b4b5a;">
+        <h3>Live Paycheck Calculator</h3>
+        <p>Your Base Pay Rate: <strong>$<%= rate %>/hrs</strong></p>
+        <p>Total Calculated Hours: <strong><%= totalHours %> hrs</strong></p>
+        <p style="font-size: 1.2em; color: #2ecc71;">Estimate Gross Pay: <strong>$<%= totalPayout %></strong></p>
+    </div>
+
+    <form action="/punch" method="POST" style="display: flex; gap: 20px; margin-bottom: 30px;">
+        <button type="submit" name="action" value="CLOCK_IN"
+            <%= currentStatus === 'CLOCK_IN' ? 'disabled' : '' %>
+            style="background: <%= currentStatus === 'CLOCK_IN' ? '#1f4d2b' : '#2ea44f' %>; flex: 1; padding: 15px; font-weight: bold; cursor: <%= currentStatus === 'CLOCK_IN' ? 'not-allowed' : 'pointer' %>;">
+            Punch In Clock
+        </button>
+        <button type="submit" name="action" value="CLOCK_OUT"
+            <%= currentStatus === 'CLOCK_OUT' ? 'disabled' : '' %>
+            style="background: <%= currentStatus === 'CLOCK_OUT' ? '#5a1921' : '#cb2431' %>; flex: 1; padding: 15px; font-weight: bold; cursor: <%= currentStatus === 'CLOCK_OUT' ? 'not-allowed' : 'pointer' %>;">
+            Punch Clock Out
+        </button>
+    </form>
+
+    <h3>Your Punch History</h3>
     <table>
         <thead>
             <tr>
@@ -67,3 +69,21 @@ style="background: <%= currentStatus === 'CLOCK_OUT' ? '#5a1921' : '#cb2431' %>;
         </tfoot>
     </table>
 
+    <% if (typeof archives !== 'undefined' && archives && Object.keys(archives).length) { %>
+        <h3>Archived Pay Periods</h3>
+        <% Object.keys(archives).forEach(label => { %>
+            <details>
+                <summary><strong><%= label %></strong></summary>
+                <table>
+                    <thead><tr><th>Date</th><th>Time (Punch Span)</th><th>Hours</th><th>Amount($)</th></tr></thead>
+                    <tbody>
+                        <% archives[label].forEach(s => { %>
+                            <tr><td><%= s.date %></td><td><%= s.time %></td><td><%= s.hours %> hrs</td><td>$<%= s.amount %></td></tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </details>
+        <% }) %>
+    <% } %>
+</body>
+</html>

@@ -27,6 +27,18 @@ app.use(session({
 // 2.2 Lets async routes pass errors to the error handler instead of hanging or crashing
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// 2.25 Menu information available to every page
+app.use((req, res, next) => {
+    res.locals.nav = {
+        loggedIn: !!req.session.userID,
+        admin: req.session.admin === 1,
+        district: req.session.district === 1,
+        name: req.session.name || '',
+        path: req.path
+    };
+    next();
+});
+
 // 2.3 Logins created before this version get their district flag filled in
 app.use(wrap(async (req, res, next) => {
     if (req.session.userID && req.session.district === undefined) {
@@ -247,7 +259,8 @@ app.get('/logout', (req, res) => {
 // 6.6 Admin panel - add an employee, manager or district administrator
 app.post('/admin/users/add', wrap(async (req, res) => {
     if (req.session.admin !== 1) return res.redirect('/');
-    const { username, password, name, hourly_rate, is_admin, unit } = req.body;
+    const { username, password, name, hourly_rate, is_admin } = req.body;
+    const unit = req.body.unit || (req.body.site_id + ':' + req.body.program_id);
     const isDistrict = req.session.district === 1;
 
     if (!username || !name || typeof password !== 'string' || !password) return res.redirect('/dashboard');

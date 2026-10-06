@@ -13,33 +13,33 @@
     </style>
 </head>
 <body>
-    <header style="display: flex; justify-content: space-between; align-items: center;">
-        <h2>Administrative Operations: <%= name %></h2>
-        <a href="/logout"><button style="background-color: #6c757d;">Log Out</button></a>
-    </header>
-    <p><a href="/admin/requests">Pending hour requests</a> | <a href="/timecards">Past timecards</a></p>
-    <p><a href="/admin/users/reset">Reset a password</a><% if (isDistrict) { %> | <a href="/admin/org">Sites, programs and assignments</a> | <a href="/admin/backup">Download database backup</a><% } %></p>
+    <%- include('partials/nav') %>
+    <h2>Administrative Operations</h2>
 
     <!-- User Management Operations Center Panel -->
     <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
         <!-- Form A: Add User Profile Account -->
-        <div class="admin-box" style="flex: 1; min-width: 280px;">
-            <h3>Add User Profile Account</h3>
+        <details class="admin-box" style="flex: 1; min-width: 280px;">
+            <summary><strong>Add User Profile Account</strong></summary>
             <form action="/admin/users/add" method="POST">
                 <input type="text" name="name" placeholder="Full Legal Name" required style="margin-bottom:10px; width:100%;">
                 <input type="text" name="username" placeholder="Username" required style="margin-bottom:10px; width:100%;">
                 <input type="password" name="password" placeholder="Password" required style="margin-bottom:10px; width:100%;">
                 <input type="number" name="hourly_rate" step="0.01" placeholder="Hourly Rate ($/hr)" required style="margin-bottom:10px; width:100%;">
 
-                <label for="unitSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
-                    Site / Program:
+                <label for="siteSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
+                    School / Location:
                 </label>
-                <select id="unitSelect" name="unit" style="width: 100%; padding: 10px; margin-bottom: 10px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
-                    <option value="">-- Choose site / program --</option>
-                    <% units.forEach(u => { %>
-                        <option value="<%= u.value %>"><%= u.label %></option>
-                    <% }) %>
+                <select id="siteSelect" name="site_id" style="width: 100%; padding: 10px; margin-bottom: 10px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
+                    <option value="">-- Choose school / location --</option>
                 </select>
+                <label for="programSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-bottom: 6px; color: #fff;">
+                    Activity / Program:
+                </label>
+                <select id="programSelect" name="program_id" style="width: 100%; padding: 10px; margin-bottom: 10px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
+                    <option value="">-- Choose a school first --</option>
+                </select>
+                <script type="application/json" id="unitData"><%- JSON.stringify(units.map(u => ({ site_id: u.site_id, program_id: u.program_id, label: u.label }))).replace(/</g, '\\u003c') %></script>
 
                 <% if (isDistrict) { %>
                     <label for="roleSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
@@ -57,11 +57,11 @@
 
                 <button type="submit" style="background-color: #2ea44f; width:100%; font-weight: bold;">Save New Roster Account</button>
             </form>
-        </div>
+        </details>
 
         <!-- Form B: Terminate/Remove User Profile Account -->
-        <div class="admin-box" style="flex: 1; min-width: 280px;">
-            <h3>Remove User Account Profile</h3>
+        <details class="admin-box" style="flex: 1; min-width: 280px;">
+            <summary><strong>Remove User Account Profile</strong></summary>
             <form action="/admin/users/remove" method="POST">
                 <label for="removeSelect">Select Account to Delete:</label>
                 <select id="removeSelect" name="employeeId" required style="margin-bottom:15px; width:100%;">
@@ -76,7 +76,7 @@
                     Permanently Delete User Profile
                 </button>
             </form>
-        </div>
+        </details>
     </div>
 
     <hr style="border-color: #455a64; margin: 30px 0;">
@@ -127,6 +127,34 @@
             </tr>
         </tfoot>
     </table>
+
+    <!-- School -> activity dropdowns -->
+    <script>
+        (function () {
+            const units = JSON.parse(document.getElementById("unitData").textContent);
+            const siteSel = document.getElementById("siteSelect");
+            const progSel = document.getElementById("programSelect");
+            const sites = new Map();
+            units.forEach(u => sites.set(u.site_id, u.label.split(" / ")[0]));
+            sites.forEach((label, id) => {
+                const o = document.createElement("option");
+                o.value = id; o.textContent = label;
+                siteSel.appendChild(o);
+            });
+            siteSel.addEventListener("change", () => {
+                progSel.innerHTML = "";
+                const first = document.createElement("option");
+                first.value = ""; first.textContent = siteSel.value ? "-- Choose activity / program --" : "-- Choose a school first --";
+                progSel.appendChild(first);
+                units.filter(u => String(u.site_id) === siteSel.value).forEach(u => {
+                    const o = document.createElement("option");
+                    o.value = u.program_id;
+                    o.textContent = u.label.split(" / ").slice(1).join(" / ");
+                    progSel.appendChild(o);
+                });
+            });
+        })();
+    </script>
 
     <!-- Client-side Interactive Filter Script -->
     <script>

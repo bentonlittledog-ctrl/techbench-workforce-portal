@@ -113,6 +113,28 @@ const ORG_TPL =
   <button type="submit">Add assignment</button>
 </form>
 
+<h3>Assign several accounts at once</h3>
+<p>These accounts have no site or program yet. Tick the people, choose where they work, and assign them together.</p>
+<% if (!unassigned.length) { %>
+  <p>Every account is already assigned.</p>
+<% } else { %>
+<form action="/admin/org/bulk" method="POST">
+  <% unassigned.forEach(a => { %>
+    <label style="display:block"><input type="checkbox" name="employeeIds" value="<%= a.id %>"> <%= a.name %> (<%= a.username %>) - <%= a.is_admin ? 'Manager' : 'Employee' %></label>
+  <% }) %>
+  <label for="bulkSite">Site</label>
+  <select id="bulkSite" name="site_id" required>
+    <% sites.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
+  </select>
+  <label for="bulkProgram">Program</label>
+  <select id="bulkProgram" name="program_id" required>
+    <option value="ALL">All programs (managers only)</option>
+    <% programs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %>
+  </select>
+  <button type="submit">Assign selected accounts</button>
+</form>
+<% } %>
+
 <h3>Current assignments</h3>
 <table>
   <thead><tr><th>Account</th><th>Level</th><th>Site</th><th>Program</th></tr></thead>
@@ -143,6 +165,13 @@ function mount(app, getDb, wrap) {
         const sites = await db.all('SELECT id, name FROM sites ORDER BY name');
         const programs = await db.all('SELECT id, name FROM programs ORDER BY name');
         const accounts = await db.all('SELECT id, name, username, is_admin, is_district FROM employees ORDER BY name');
+        const unassigned = await db.all(`
+            SELECT id, name, username, is_admin FROM employees
+            WHERE is_district = 0
+              AND id NOT IN (SELECT employee_id FROM memberships)
+              AND id NOT IN (SELECT employee_id FROM scopes)
+            ORDER BY name
+        `);
         const assignments = await db.all(`
             SELECT e.name, 'Employee' AS level, s.name AS site_name, p.name AS program_name
               FROM memberships m JOIN employees e ON e.id = m.employee_id
@@ -154,7 +183,7 @@ function mount(app, getDb, wrap) {
             ORDER BY 1, 3, 4
         `);
         res.send(ejs.render(ORG_TPL, {
-            sites, programs, accounts, assignments,
+            sites, programs, accounts, assignments, unassigned,
             message: ORG_MESSAGES[req.query.msg] || null
         }));
     }));
@@ -172,6 +201,44 @@ function mount(app, getDb, wrap) {
     });
     app.post('/admin/org/site', addName('sites'));
     app.post('/admin/org/program', addName('programs'));
+
+    app.post('/admin/org/bulk', wrap(async (req, res) => {
+        if (needDistrict(req, res)) return;
+        const db = getDb();
+        const ids = [].concat(req.body.employeeIds || []).map(n => parseInt(n, 10)).filter(Boolean);
+        const siteId = parseInt(req.body.site_id, 10);
+        const allPrograms = req.body.program_id === 'ALL';
+        const programId = allPrograms ? null : parseInt(req.body.program_id, 10);
+
+        const site = await db.get('SELECT id FROM sites WHERE id = ?', [siteId]);
+        const prog = allPrograms ? true : await db.get('SELECT id FROM programs WHERE id = ?', [programId]);
+        if (!ids.length || !site || !prog) return res.redirect('/admin/org?msg=bad');
+
+        let skipped = false;
+        await db.run('BEGIN');
+        try {
+            for (const id of ids) {
+                const emp = await db.get('SELECT id, is_admin, is_district FROM employees WHERE id = ?', [id]);
+                if (!emp || emp.is_district) continue;
+                if (emp.is_admin) {
+                    const exists = await db.get(
+                        'SELECT 1 FROM scopes WHERE employee_id = ? AND site_id = ? AND program_id IS ?',
+                        [id, siteId, programId]
+                    );
+                    if (!exists) await db.run('INSERT INTO scopes (employee_id, site_id, program_id) VALUES (?, ?, ?)', [id, siteId, programId]);
+                } else if (allPrograms) {
+                    skipped = true;
+                } else {
+                    await db.run('INSERT OR IGNORE INTO memberships (employee_id, site_id, program_id) VALUES (?, ?, ?)', [id, siteId, programId]);
+                }
+            }
+            await db.run('COMMIT');
+        } catch (err) {
+            await db.run('ROLLBACK');
+            throw err;
+        }
+        res.redirect('/admin/org?msg=' + (skipped ? 'all' : 'ok'));
+    }));
 
     app.post('/admin/org/assign', wrap(async (req, res) => {
         if (needDistrict(req, res)) return;
