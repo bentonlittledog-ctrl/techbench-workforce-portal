@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log a repair - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Log a repair</h1>
+    <p class="sub">Adds a line to the <strong>Repair Logger</strong> in the master administrative sheet.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+    <% if (!configured) { %>
+        <div class="msg bad" role="status">The sheet is not connected yet, so this form cannot send anything.
+            <% if (isAdmin) { %><a href="/bench/setup">Set up the connection</a>.<% } else { %>Ask a manager to finish the setup.<% } %></div>
+    <% } else if (!l.live) { %>
+        <div class="msg" role="status">Could not read the sheet&rsquo;s dropdown lists right now (<%= l.error %>), so the lists below may be out of date.</div>
+    <% } %>
+
+    <form action="/bench/repair" method="POST" class="panel" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+        <label for="model">Device model</label>
+        <select id="model" name="model" required>
+            <option value="">Choose&hellip;</option>
+            <% l.repairModels.forEach(m => { %><option><%= m %></option><% }) %>
+        </select>
+        <label for="serial">Serial number / asset ID <span class="hint">(leave blank if unknown)</span></label>
+        <input type="text" id="serial" name="serial" maxlength="40" autocapitalize="characters" autocomplete="off">
+
+        <label>Parts needed <span class="hint">(tick everything that applies, or none)</span></label>
+        <div class="checks">
+            <% l.repairParts.forEach(p => { %><label><input type="checkbox" name="parts" value="<%= p %>"> <%= p %></label><% }) %>
+        </div>
+
+        <div class="grid2" style="margin-top:6px;">
+            <div>
+                <label for="tier">Repair tier</label>
+                <select id="tier" name="tier" required><option value="">Choose&hellip;</option><% l.tiers.forEach(t => { %><option><%= t %></option><% }) %></select>
+            </div>
+            <div>
+                <label for="flow">Status</label>
+                <select id="flow" name="flow" required><option value="">Choose&hellip;</option><% l.flows.forEach(f => { %><option><%= f %></option><% }) %></select>
+            </div>
+        </div>
+        <label for="notes">Repair notes</label>
+        <textarea id="notes" name="notes" rows="4" maxlength="600" placeholder="What was wrong, what you did, anything the next person should know"></textarea>
+        <button type="submit" <%= configured ? '' : 'disabled' %>>Add to Repair Logger</button>
+    </form>
+
+    <h3 style="margin-top:28px;">Recently sent</h3>
+    <div class="table-wrap">
+    <table>
+        <thead><tr><th>When</th><th>Who</th><th>What</th><th>Result</th></tr></thead>
+        <tbody>
+        <% recent.forEach(r => { %>
+            <tr>
+                <td class="mono"><%= String(r.at).slice(0, 16) %></td>
+                <td><%= r.user_name %></td>
+                <td><%= r.summary %></td>
+                <td><% if (r.status === "ok") { %><span class="badge ok">SAVED<%= r.row_no ? " · ROW " + r.row_no : "" %></span><% } else { %><span class="badge bad">FAILED</span> <span class="hint"><%= r.error %></span><% } %></td>
+            </tr>
+        <% }) %>
+        <% if (!recent.length) { %><tr><td colspan="4" class="empty">Nothing sent yet.</td></tr><% } %>
+        </tbody>
+    </table>
+    </div>
+</body>
+</html>

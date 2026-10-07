@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order a part - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Order a part</h1>
+    <p class="sub">Adds a line to the <strong>Order Sheet</strong> in the master administrative sheet. Choices come straight from the sheet&rsquo;s own lists.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+    <% if (!configured) { %>
+        <div class="msg bad" role="status">The sheet is not connected yet, so this form cannot send anything.
+            <% if (isAdmin) { %><a href="/bench/setup">Set up the connection</a>.<% } else { %>Ask a manager to finish the setup.<% } %></div>
+    <% } else if (!l.live) { %>
+        <div class="msg" role="status">Could not read the sheet&rsquo;s dropdown lists right now (<%= l.error %>), so the lists below may be out of date.</div>
+    <% } %>
+
+    <form action="/bench/order" method="POST" class="panel" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+        <label for="model">Device model</label>
+        <select id="model" name="model" required>
+            <option value="">Choose&hellip;</option>
+            <% l.orderModels.forEach(m => { %><option><%= m %></option><% }) %>
+        </select>
+        <label for="part">Part</label>
+        <select id="part" name="part" required>
+            <option value="">Choose&hellip;</option>
+            <% l.orderParts.forEach(p => { %><option><%= p %></option><% }) %>
+        </select>
+        <label for="qty">Quantity</label>
+        <input type="number" id="qty" name="qty" min="1" max="99" step="1" value="1" required style="max-width:160px;">
+        <label for="notes">Notes <span class="hint">(why it is needed)</span></label>
+        <input type="text" id="notes" name="notes" maxlength="200" placeholder="e.g. Camera failure">
+        <button type="submit" <%= configured ? '' : 'disabled' %>>Add to Order Sheet</button>
+    </form>
+
+    <h3 style="margin-top:28px;">Recently sent</h3>
+    <div class="table-wrap">
+    <table>
+        <thead><tr><th>When</th><th>Who</th><th>What</th><th>Result</th></tr></thead>
+        <tbody>
+        <% recent.forEach(r => { %>
+            <tr>
+                <td class="mono"><%= String(r.at).slice(0, 16) %></td>
+                <td><%= r.user_name %></td>
+                <td><%= r.summary %></td>
+                <td><% if (r.status === "ok") { %><span class="badge ok">SAVED<%= r.row_no ? " · ROW " + r.row_no : "" %></span><% } else { %><span class="badge bad">FAILED</span> <span class="hint"><%= r.error %></span><% } %></td>
+            </tr>
+        <% }) %>
+        <% if (!recent.length) { %><tr><td colspan="4" class="empty">Nothing sent yet.</td></tr><% } %>
+        </tbody>
+    </table>
+    </div>
+</body>
+</html>

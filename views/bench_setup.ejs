@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sheet connection - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Sheet connection</h1>
+    <p class="sub">Lets the portal add orders and repairs to the master administrative sheet. Set this up once.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <div class="panel">
+        <h3>Status</h3>
+        <p>Web app address: <span class="badge <%= urlSet ? 'ok' : 'warn' %>"><%= urlSet ? 'SET' : 'MISSING' %></span>
+           &nbsp; Password: <span class="badge <%= tokenSet ? 'ok' : 'warn' %>"><%= tokenSet ? 'SET' : 'MISSING' %></span></p>
+        <form action="/bench/setup/test" method="POST"><button type="submit" <%= configured ? '' : 'disabled' %>>Test the connection</button></form>
+    </div>
+
+    <div class="panel">
+        <h3>Setup steps</h3>
+        <ol class="steps">
+            <li>Open the master administrative sheet. Choose <strong>Extensions &rarr; Apps Script</strong>.</li>
+            <li>Delete everything in the editor, paste the code below, and click Save.</li>
+            <li>Click the gear (<strong>Project Settings</strong>) &rarr; <strong>Script properties</strong> &rarr; Add: name <code>PORTAL_TOKEN</code>, value a long made-up password. Save.</li>
+            <li><strong>Deploy &rarr; New deployment</strong> &rarr; type <strong>Web app</strong>. Execute as <strong>Me</strong>, who has access <strong>Anyone</strong>. Deploy, approve the permission prompts, and copy the Web app URL.</li>
+            <li>In Render, open the service &rarr; <strong>Environment</strong> and add <code>SHEET_WEBAPP_URL</code> (the URL) and <code>SHEET_TOKEN</code> (the same password). Render restarts the app.</li>
+            <li>Come back here and press <strong>Test the connection</strong>.</li>
+        </ol>
+        <p class="hint">If your school&rsquo;s Google settings do not allow &ldquo;Anyone&rdquo; on web apps, ask IT to allow it for this one script. The password is what keeps it private, so make it long.</p>
+    </div>
+
+    <div class="panel">
+        <h3>Code to paste</h3>
+        <button type="button" class="btn-ghost" onclick="navigator.clipboard.writeText(document.getElementById('gs').textContent).then(function(){ this.textContent = 'Copied'; }.bind(this));">Copy code</button>
+        <pre id="gs" class="codeblock"><%= code %></pre>
+    </div>
+</body>
+</html>
