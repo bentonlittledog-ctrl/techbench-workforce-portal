@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Learn</h1>
+    <p class="sub">Repair guides for every device we fix, how-to videos, and quick reference sheets.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <form action="/learn" method="GET" class="searchbar">
+        <input type="search" name="q" value="<%= q %>" placeholder="Search guides, devices or repairs (try &quot;LCD&quot; or &quot;NL73&quot;)" maxlength="80" aria-label="Search">
+        <button type="submit">Search</button>
+        <% if (isAdmin) { %><a class="btn-link" href="/learn/edit">+ Add a page</a><a class="btn-link" href="/learn/devices">Manage devices</a><% } %>
+    </form>
+
+    <% if (results) { %>
+        <div class="panel">
+            <h3><%= results.length %> result<%= results.length === 1 ? '' : 's' %> for &ldquo;<%= q %>&rdquo; <a href="/learn" class="hint">clear</a></h3>
+            <% if (!results.length) { %><p class="hint">Nothing matched. Try a shorter word, like &ldquo;screen&rdquo; or the model number.</p><% } %>
+            <ul class="plain">
+                <% results.forEach(r => { %>
+                    <li><a href="/learn/guide?id=<%= r.id %>"><%= r.title %></a>
+                        <span class="badge"><%= r.kindName %></span>
+                        <% if (r.device_name) { %><span class="hint"><%= r.device_name %></span><% } %></li>
+                <% }) %>
+            </ul>
+        </div>
+    <% } else { %>
+        <% if (brands.length || general) { %>
+        <div class="panel">
+            <h3>Repair guides by device</h3>
+            <% brands.forEach(b => { %>
+                <h4 class="brand"><%= b.brand %></h4>
+                <div class="chips">
+                    <% b.devices.forEach(d => { %>
+                        <a class="chip" href="/learn/device?id=<%= d.id %>"><%= d.name %><span class="n <%= d.n ? '' : 'zero' %>"><%= d.n %></span></a>
+                    <% }) %>
+                </div>
+            <% }) %>
+            <h4 class="brand">Any device</h4>
+            <div class="chips"><a class="chip" href="/learn/device?id=0">General (all devices)<span class="n <%= general ? '' : 'zero' %>"><%= general %></span></a></div>
+            <p class="hint" style="margin-top:14px;">The number on each device is how many repair guides it has so far.</p>
+        </div>
+        <% } %>
+        <% if (!brands.length && !general && !videos.length && !refs.length) { %><div class="panel"><p class="hint">Nothing has been added for your program yet.</p></div><% } %>
+
+        <div class="grid2">
+            <div class="panel">
+                <h3>Videos</h3>
+                <% if (!videos.length) { %><p class="hint">No videos yet.</p><% } %>
+                <% let a1 = null; videos.forEach(v => { if (v.area !== a1) { a1 = v.area; %><h4 class="brand"><%= v.area %></h4><% } %>
+                    <div><a href="/learn/guide?id=<%= v.id %>"><%= v.title %></a></div>
+                <% }) %>
+            </div>
+            <div class="panel">
+                <h3>Quick reference guides</h3>
+                <% if (!refs.length) { %><p class="hint">No quick references yet.</p><% } %>
+                <% let a2 = null; refs.forEach(v => { if (v.area !== a2) { a2 = v.area; %><h4 class="brand"><%= v.area %></h4><% } %>
+                    <div><a href="/learn/guide?id=<%= v.id %>"><%= v.title %></a></div>
+                <% }) %>
+            </div>
+        </div>
+    <% } %>
+</body>
+</html>

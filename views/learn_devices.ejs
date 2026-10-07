@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Devices - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Devices</h1>
+    <p class="sub"><a href="/learn">&larr; Back to Learn</a> &nbsp; The models that appear in the repair guides. Keep names the same as in the master sheet.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <form action="/learn/devices/add" method="POST" class="panel">
+        <h3>Add a device</h3>
+        <div class="row">
+            <div style="flex:1 1 320px;"><label for="name">Name</label><input type="text" id="name" name="name" maxlength="100" placeholder="e.g. HP Chromebook 14 G7 EE" required></div>
+            <div style="flex:0 1 260px;"><label for="program_id">Program</label><select id="program_id" name="program_id" required><% progs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %></select></div>
+            <div style="flex:0 0 auto; min-width:0;"><button type="submit">Add</button></div>
+        </div>
+    </form>
+
+    <div class="table-wrap">
+    <table>
+        <thead><tr><th>Device</th><th>Program</th><th class="num">Pages</th><th></th></tr></thead>
+        <tbody>
+        <% devices.forEach(d => { %>
+            <tr>
+                <td>
+                    <% if (d.editable) { %>
+                    <form action="/learn/devices/rename" method="POST" style="display:flex; gap:8px; margin:0;">
+                        <input type="hidden" name="id" value="<%= d.id %>">
+                        <input type="text" name="name" value="<%= d.name %>" maxlength="100" aria-label="Device name" style="margin:0; min-width:260px;">
+                        <button type="submit" class="btn-ghost" style="margin:0;">Rename</button>
+                    </form>
+                    <% } else { %><%= d.name %><% } %>
+                </td>
+                <td><%= d.program_name || 'Everyone' %></td>
+                <td class="num"><%= d.n %></td>
+                <td>
+                    <% if (!d.n && d.editable) { %>
+                    <form action="/learn/devices/delete" method="POST" style="margin:0;">
+                        <input type="hidden" name="id" value="<%= d.id %>">
+                        <button type="submit" class="btn-ghost" style="margin:0;" onclick="return confirm('Remove this device?');">Remove</button>
+                    </form>
+                    <% } %>
+                </td>
+            </tr>
+        <% }) %>
+        </tbody>
+    </table>
+    </div>
+</body>
+</html>

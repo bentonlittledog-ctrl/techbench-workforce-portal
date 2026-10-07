@@ -46,8 +46,11 @@ app.use(wrap(async (req, res, next) => {
 }));
 
 // 2.25 Menu information available to every page
-app.use((req, res, next) => {
+app.use(wrap(async (req, res, next) => {
+    let resources = false;
+    if (req.session.userID) { try { resources = await require('./education').hasResources(db, req.session); } catch (e) { resources = false; } }
     res.locals.nav = {
+        resources,
         loggedIn: !!req.session.userID,
         admin: req.session.admin === 1,
         district: req.session.district === 1,
@@ -55,7 +58,7 @@ app.use((req, res, next) => {
         path: req.path
     };
     next();
-});
+}));
 
 // 2.3 Logins created before this version get their district flag filled in
 app.use(wrap(async (req, res, next) => {
@@ -392,6 +395,7 @@ require('./foundation').mount(app, () => db, wrap);
 require('./scope').mount(app, () => db, wrap);
 require('./editing')(app, () => db, wrap);
 require('./accounts')(app, () => db, wrap);
+require('./education')(app, () => db, wrap, express);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)

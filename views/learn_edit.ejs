@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit page - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1><%= isNew ? 'Add a page' : 'Edit page' %></h1>
+    <p class="sub"><a href="<%= isNew ? '/learn' : '/learn/guide?id=' + g.id %>">&larr; Cancel</a></p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <form action="/learn/save" method="POST" class="panel" id="editForm">
+        <input type="hidden" name="id" value="<%= g.id %>">
+
+        <label for="kind">What is it?</label>
+        <select id="kind" name="kind">
+            <% Object.keys(KINDS).forEach(k => { %><option value="<%= k %>" <%= g.kind === k ? 'selected' : '' %>><%= KINDS[k] %></option><% }) %>
+        </select>
+
+        <label for="program_id">Program</label>
+        <select id="program_id" name="program_id">
+            <% if (canEveryone) { %><option value="">Everyone (all programs)</option><% } %>
+            <% progs.forEach(p => { %><option value="<%= p.id %>" <%= Number(g.program_id) === p.id ? 'selected' : '' %>><%= p.name %></option><% }) %>
+        </select>
+        <p class="hint" style="margin-top:6px;">Only people in this program (and the managers over it) can see this page. A page for a specific device follows the device&rsquo;s program.</p>
+
+        <label for="device_id">Device</label>
+        <select id="device_id" name="device_id">
+            <option value="">General (all devices)</option>
+            <% devices.forEach(d => { %><option value="<%= d.id %>" <%= Number(g.device_id) === d.id ? 'selected' : '' %>><%= d.name %></option><% }) %>
+        </select>
+
+        <div data-for="repair">
+            <label for="topic">Which repair?</label>
+            <select id="topic" name="topic">
+                <option value="">Choose one&hellip;</option>
+                <optgroup label="Hardware repair"><% HARDWARE.forEach(t => { %><option <%= g.topic === t ? 'selected' : '' %>><%= t %></option><% }) %></optgroup>
+                <optgroup label="Software repair"><% SOFTWARE.forEach(t => { %><option <%= g.topic === t ? 'selected' : '' %>><%= t %></option><% }) %></optgroup>
+            </select>
+        </div>
+        <div data-for="video reference">
+            <label for="area">Section</label>
+            <select id="area" name="area">
+                <% AREAS.forEach(a => { %><option <%= g.area === a ? 'selected' : '' %>><%= a %></option><% }) %>
+            </select>
+        </div>
+
+        <label for="title">Title</label>
+        <input type="text" id="title" name="title" value="<%= g.title %>" maxlength="120" placeholder="e.g. LCD Screen Repair">
+
+        <div data-for="repair video">
+            <label for="video_url">Video address <span class="hint">(YouTube or Google Drive; leave blank if none)</span></label>
+            <input type="url" id="video_url" name="video_url" value="<%= g.video_url %>" placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+
+        <label for="body">Steps and notes</label>
+        <div class="toolbar">
+            <button type="button" class="btn-ghost" data-ins="## " title="Heading">Heading</button>
+            <button type="button" class="btn-ghost" data-ins="1. " title="Numbered step">1. Step</button>
+            <button type="button" class="btn-ghost" data-ins="- " title="Bullet">&bull; Bullet</button>
+            <button type="button" class="btn-ghost" data-ins="> " title="Warning or tip">Tip / warning</button>
+            <label class="btn-ghost upload">Add picture<input type="file" id="pic" accept="image/*" hidden></label>
+            <span class="hint" id="picStatus"></span>
+        </div>
+        <textarea id="body" name="body" rows="16" maxlength="20000" placeholder="1. Power off the device and unplug the charger.&#10;2. Remove the bottom screws.&#10;> Keep the screws in order so they go back in the same holes."><%= g.body %></textarea>
+        <p class="hint">One line per step. Start a line with <code>1.</code> for a numbered step, <code>-</code> for a bullet, <code>##</code> for a heading, <code>&gt;</code> for a tip or warning. Use <code>**bold**</code> for emphasis. &ldquo;Add picture&rdquo; puts a picture at your cursor.</p>
+
+        <label for="link_url">Link to a document <span class="hint">(optional, such as a PDF or Google Doc)</span></label>
+        <input type="url" id="link_url" name="link_url" value="<%= g.link_url %>" placeholder="https://">
+
+        <button type="submit">Save page</button>
+    </form>
+
+    <script>
+    (function () {
+        var kind = document.getElementById('kind'), body = document.getElementById('body'), status = document.getElementById('picStatus');
+        function sync() {
+            document.querySelectorAll('[data-for]').forEach(function (el) {
+                el.hidden = el.getAttribute('data-for').split(' ').indexOf(kind.value) < 0;
+            });
+        }
+        kind.addEventListener('change', sync); sync();
+        function insert(text) {
+            var s = body.selectionStart, e = body.selectionEnd, v = body.value;
+            var pre = (s > 0 && v.charAt(s - 1) !== '\n') ? '\n' : '';
+            body.value = v.slice(0, s) + pre + text + v.slice(e);
+            body.focus(); body.selectionStart = body.selectionEnd = s + pre.length + text.length;
+        }
+        document.querySelectorAll('[data-ins]').forEach(function (b) {
+            b.addEventListener('click', function () { insert(b.getAttribute('data-ins')); });
+        });
+        document.getElementById('pic').addEventListener('change', function () {
+            var f = this.files[0]; if (!f) return;
+            status.textContent = 'Uploading...';
+            var img = new Image(), url = URL.createObjectURL(f);
+            img.onload = function () {
+                var max = 1600, r = Math.min(1, max / Math.max(img.width, img.height));
+                var c = document.createElement('canvas'); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                c.toBlob(function (blob) {
+                    fetch('/learn/upload', { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+                        .then(function (r) { return r.json(); })
+                        .then(function (j) {
+                            if (j.url) { insert('![Describe the picture](' + j.url + ')\n'); status.textContent = 'Picture added. Replace "Describe the picture" with a caption.'; }
+                            else status.textContent = j.error || 'Upload failed.';
+                        }).catch(function () { status.textContent = 'Upload failed.'; });
+                }, 'image/jpeg', 0.85);
+            };
+            img.onerror = function () { status.textContent = 'That file could not be read as a picture.'; };
+            img.src = url;
+            this.value = '';
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guide - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1><%= g.title %></h1>
+    <p class="sub">
+        <a href="/learn<%= g.kind === 'repair' ? '/device?id=' + (g.device_id || 0) : '' %>">&larr; Back</a>
+        &nbsp;<span class="badge"><%= kindName %></span>
+        <span class="badge"><%= g.program_name || 'Everyone' %></span>
+        <% if (g.device_name) { %> <span class="hint"><%= g.device_name %></span><% } %>
+        <% if (g.topic && g.topic !== g.title) { %> <span class="hint"><%= g.topic %></span><% } %>
+    </p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <article class="panel guide">
+        <% if (embed) { %>
+            <div class="video"><iframe src="<%= embed %>" title="<%= g.title %>" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+            <p class="hint">If the video doesn't play on a school Chromebook, the web filter may be blocking it. <a href="<%= g.video_url %>" target="_blank" rel="noopener">Open it in a new tab</a>.</p>
+        <% } else if (g.video_url) { %>
+            <p><a class="btn-link" href="<%= g.video_url %>" target="_blank" rel="noopener">&#9654; Watch the video</a></p>
+        <% } %>
+        <%- bodyHtml %>
+        <% if (g.link_url) { %><p><a class="btn-link" href="<%= g.link_url %>" target="_blank" rel="noopener">Open linked document &nearr;</a></p><% } %>
+        <p class="hint meta">Last updated <%= updated %><% if (g.updated_by) { %> by <%= g.updated_by %><% } %></p>
+    </article>
+
+    <% if (isAdmin) { %>
+        <form action="/learn/delete" method="POST" class="actions">
+            <a class="btn-link" href="/learn/edit?id=<%= g.id %>">Edit this page</a>
+            <input type="hidden" name="id" value="<%= g.id %>">
+            <button type="submit" class="btn-danger" onclick="return confirm('Delete this page for good?');">Delete</button>
+        </form>
+    <% } %>
+</body>
+</html>

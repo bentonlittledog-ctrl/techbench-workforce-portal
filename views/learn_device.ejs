@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device guides - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1><%= device.name %></h1>
+    <p class="sub"><a href="/learn">&larr; All devices</a></p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <div class="grid2">
+        <% sections.forEach(s => { %>
+        <div class="panel">
+            <h3><%= s.label %></h3>
+            <% s.items.forEach(it => { %>
+                <div class="topicrow">
+                    <span class="tname"><%= it.topic %></span>
+                    <span class="tlinks">
+                        <% it.guides.forEach(g => { %><a href="/learn/guide?id=<%= g.id %>"><%= g.title === it.topic ? 'Open guide' : g.title %></a><% }) %>
+                        <% if (!it.guides.length) { %><span class="hint">No guide yet</span><% } %>
+                        <% if (isAdmin) { %><a class="add" href="/learn/edit?kind=repair&amp;device=<%= device.id %>&amp;topic=<%= encodeURIComponent(it.topic) %>"><%= it.guides.length ? '+ another' : '+ Add' %></a><% } %>
+                    </span>
+                </div>
+            <% }) %>
+        </div>
+        <% }) %>
+    </div>
+
+    <% if (other.length || others.length) { %>
+    <div class="panel">
+        <h3>Other pages for this device</h3>
+        <ul class="plain">
+            <% other.forEach(g => { %><li><a href="/learn/guide?id=<%= g.id %>"><%= g.title %></a> <span class="badge">Repair guide</span></li><% }) %>
+            <% others.forEach(g => { %><li><a href="/learn/guide?id=<%= g.id %>"><%= g.title %></a> <span class="badge"><%= g.kindName %></span></li><% }) %>
+        </ul>
+    </div>
+    <% } %>
+</body>
+</html>

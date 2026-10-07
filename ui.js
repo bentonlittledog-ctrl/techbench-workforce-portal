@@ -13,6 +13,8 @@ const ICON = {
     org: '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/>',
     db: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 010 7M18 14c2.2.6 3.5 2.6 3.5 6"/>',
+    book: '<path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2zM4 21h15M8 7h7"/>',
+    link: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3A4 4 0 0011 18.7l1-1"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
 };
 const svg = k => '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
@@ -79,6 +81,12 @@ function navHtml(nav, theme) {
         (nav.admin ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
         item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') + '</ul>';
+
+    if (nav.resources) {
+        h += '<div class="grp">Resources</div><ul>' +
+            item('/learn', 'book', 'Learn', starts('/learn')) +
+            item('/links', 'link', 'Quick links', starts('/links')) + '</ul>';
+    }
 
     if (nav.admin) {
         h += '<div class="grp">Manage</div><ul>' +

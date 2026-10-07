@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick links - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Quick links</h1>
+    <p class="sub">The places we use every day, in one spot.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <% if (!groups.length) { %><div class="panel"><p class="hint">No links yet.</p></div><% } %>
+    <% groups.forEach(g => { %>
+        <div class="panel">
+            <h3><%= g.name %></h3>
+            <div class="linkgrid">
+                <% g.items.forEach(l => { %>
+                    <div class="linkcard">
+                        <a class="lk" href="<%= l.url %>" target="_blank" rel="noopener"><strong><%= l.title %></strong><% if (l.note) { %><span><%= l.note %></span><% } %></a>
+                        <% if (l.editable) { %>
+                        <details>
+                            <summary><%= l.audience === 'admin' ? 'Managers only · ' : '' %>Edit</summary>
+                            <form action="/links/save" method="POST">
+                                <input type="hidden" name="id" value="<%= l.id %>">
+                                <label>Group</label><input type="text" name="group_name" value="<%= l.group_name %>" maxlength="40" required>
+                                <label>Title</label><input type="text" name="title" value="<%= l.title %>" maxlength="80" required>
+                                <label>Web address</label><input type="url" name="url" value="<%= l.url %>" required>
+                                <label>Note</label><input type="text" name="note" value="<%= l.note %>" maxlength="200">
+                                <label>Program</label>
+                                <select name="program_id"><% if (canEveryone) { %><option value="" <%= l.program_id == null ? 'selected' : '' %>>Everyone (all programs)</option><% } %><% progs.forEach(p => { %><option value="<%= p.id %>" <%= Number(l.program_id) === p.id ? 'selected' : '' %>><%= p.name %></option><% }) %></select>
+                                <label>Who sees it</label>
+                                <select name="audience"><option value="all" <%= l.audience === 'all' ? 'selected' : '' %>>Everyone in that program</option><option value="admin" <%= l.audience === 'admin' ? 'selected' : '' %>>Managers only</option></select>
+                                <button type="submit">Save</button>
+                            </form>
+                            <form action="/links/delete" method="POST"><input type="hidden" name="id" value="<%= l.id %>"><button type="submit" class="btn-ghost" onclick="return confirm('Remove this link?');">Remove link</button></form>
+                        </details>
+                        <% } %>
+                    </div>
+                <% }) %>
+            </div>
+        </div>
+    <% }) %>
+
+    <% if (isAdmin) { %>
+    <form action="/links/save" method="POST" class="panel">
+        <h3>Add a link</h3>
+        <datalist id="groups"><% groupNames.forEach(n => { %><option value="<%= n %>"><% }) %></datalist>
+        <div class="grid2">
+            <div><label for="group_name">Group</label><input type="text" id="group_name" name="group_name" list="groups" maxlength="40" placeholder="e.g. Ordering" required></div>
+            <div><label for="title">Title</label><input type="text" id="title" name="title" maxlength="80" required></div>
+            <div><label for="url">Web address</label><input type="url" id="url" name="url" placeholder="https://" required></div>
+            <div><label for="note">Note (optional)</label><input type="text" id="note" name="note" maxlength="200"></div>
+        </div>
+        <label for="program_id">Program</label>
+        <select id="program_id" name="program_id"><% if (canEveryone) { %><option value="">Everyone (all programs)</option><% } %><% progs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %></select>
+        <label for="audience">Who sees it</label>
+        <select id="audience" name="audience"><option value="all">Everyone in that program</option><option value="admin">Managers only</option></select>
+        <button type="submit">Add link</button>
+    </form>
+    <% } %>
+</body>
+</html>
