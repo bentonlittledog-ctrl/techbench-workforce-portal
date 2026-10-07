@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accounts - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Accounts</h1>
+    <p class="sub">Change a name, username, pay rate, role or assignment. Every change is saved to the audit log.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <div class="row" style="margin-bottom:6px;">
+        <div style="flex:1 1 280px; max-width:420px;">
+            <label for="find">Find an account</label>
+            <input type="text" id="find" placeholder="Type a name or username" autocomplete="off">
+        </div>
+    </div>
+
+    <div class="table-wrap">
+    <table>
+        <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Works in / manages</th><th class="num">Rate</th><th></th></tr></thead>
+        <tbody id="accountRows">
+            <% people.forEach(p => { %>
+                <tr data-find="<%= (p.name + ' ' + p.username).toLowerCase() %>">
+                    <td><%= p.name %><% if (p.self) { %> <span class="hint">(you)</span><% } %></td>
+                    <td class="mono"><%= p.username %></td>
+                    <td><span class="badge <%= p.role === 2 ? 'ok' : (p.role === 1 ? '' : 'warn') %>"><%= p.roleName %></span></td>
+                    <td><% if (p.areas.length) { %><%= p.areas.join('; ') %><% } else if (p.role === 2) { %><span class="hint">Everything</span><% } else { %><span class="hint">Not assigned yet</span><% } %></td>
+                    <td class="num">$<%= p.rate %></td>
+                    <td class="r"><a href="/admin/accounts/edit?id=<%= p.id %>">Edit</a></td>
+                </tr>
+            <% }) %>
+            <% if (!people.length) { %><tr><td colspan="6" class="empty">No accounts in your areas yet.</td></tr><% } %>
+        </tbody>
+    </table>
+    </div>
+
+    <script>
+        document.getElementById("find").addEventListener("input", function () {
+            var q = this.value.trim().toLowerCase();
+            document.querySelectorAll("#accountRows tr[data-find]").forEach(function (r) {
+                r.style.display = !q || r.getAttribute("data-find").indexOf(q) !== -1 ? "" : "none";
+            });
+        });
+    </script>
+</body>
+</html>

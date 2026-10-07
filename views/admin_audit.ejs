@@ -19,7 +19,7 @@
                     <td class="mono"><%= r.when %></td>
                     <td><%= r.actor_name %></td>
                     <td><%= r.target_name %></td>
-                    <td><span class="badge <%= /DELETE/.test(r.action) ? 'bad' : (/ADD/.test(r.action) ? 'ok' : '') %>"><%= r.action.replace('_', ' ').toLowerCase() %></span></td>
+                    <td><span class="badge <%= /DELETE|REMOVE/.test(r.action) ? 'bad' : (/ADD/.test(r.action) ? 'ok' : '') %>"><%= r.action.replace(/_/g, ' ').toLowerCase() %></span></td>
                     <td><%= r.details %></td>
                     <td><%= r.reason %></td>
                 </tr>

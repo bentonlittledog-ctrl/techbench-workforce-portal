@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit account - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Edit account</h1>
+    <p class="sub"><a href="/admin/accounts">&larr; Back to all accounts</a></p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <div class="grid2">
+        <form action="/admin/accounts/save" method="POST" class="panel">
+            <h3>Details</h3>
+            <input type="hidden" name="id" value="<%= emp.id %>">
+            <label for="name">Full name</label>
+            <input type="text" id="name" name="name" value="<%= emp.name %>" maxlength="80" required>
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" value="<%= emp.username %>" maxlength="40" autocapitalize="none" required>
+
+            <% if (!isSelf) { %>
+                <label for="hourly_rate">Hourly rate ($/hr)</label>
+                <input type="number" id="hourly_rate" name="hourly_rate" step="0.01" min="0" max="500" value="<%= emp.rate %>" required>
+                <p class="hint" style="margin-top:6px;">A new rate applies to all of this person's shifts, including past ones, because shifts don't store their own rate.</p>
+            <% } else { %>
+                <p class="hint" style="margin-top:14px;">You can't change your own pay rate or role. Ask another administrator.</p>
+            <% } %>
+
+            <% if (isDistrict && !isSelf) { %>
+                <label for="role">Role</label>
+                <select id="role" name="role">
+                    <option value="0" <%= role === 0 ? 'selected' : '' %>>Employee (timesheet only)</option>
+                    <option value="1" <%= role === 1 ? 'selected' : '' %>>Manager (manages the sites and programs assigned below)</option>
+                    <option value="2" <%= role === 2 ? 'selected' : '' %>>District administrator (everything)</option>
+                </select>
+                <p class="hint" style="margin-top:6px;">Role changes take effect right away, no need for them to log in again. Changing between employee and manager moves their assignments to match.</p>
+            <% } else { %>
+                <label>Role</label>
+                <div><span class="badge"><%= roleName %></span></div>
+            <% } %>
+            <button type="submit">Save changes</button>
+        </form>
+
+        <div>
+            <% if (!isSelf) { %>
+            <div class="panel">
+                <h3><%= role === 1 ? 'Manages' : 'Works in' %></h3>
+                <% if (role === 2) { %>
+                    <p class="hint">District administrators see everything, so they have no assignments.</p>
+                <% } else { %>
+                    <% const rows = role === 1 ? scopes : memberships; %>
+                    <% if (!rows.length) { %><p class="hint">Not assigned yet. Add a school and program below.</p><% } %>
+                    <% rows.forEach(a => { %>
+                        <form action="/admin/accounts/unassign" method="POST" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line);">
+                            <span><%= a.site_name %> / <%= a.program_name %></span>
+                            <input type="hidden" name="id" value="<%= emp.id %>">
+                            <input type="hidden" name="kind" value="<%= role === 1 ? 'scope' : 'membership' %>">
+                            <input type="hidden" name="rowId" value="<%= a.id %>">
+                            <% if (a.removable) { %><button type="submit" class="btn-ghost" style="margin:0;" onclick="return confirm('Remove this assignment?');">Remove</button><% } %>
+                        </form>
+                    <% }) %>
+                    <% if (addOptions.length) { %>
+                    <form action="/admin/accounts/assign" method="POST">
+                        <input type="hidden" name="id" value="<%= emp.id %>">
+                        <label for="unit">Add <%= role === 1 ? 'a school or program to manage' : 'a school and program' %></label>
+                        <select id="unit" name="unit" required>
+                            <% addOptions.forEach(o => { %><option value="<%= o.value %>"><%= o.label %></option><% }) %>
+                        </select>
+                        <button type="submit">Add</button>
+                    </form>
+                    <% } %>
+                <% } %>
+            </div>
+            <% } %>
+
+            <div class="panel">
+                <h3>Other actions</h3>
+                <p class="hint">Forgot their password? <a href="/admin/users/reset">Reset it here</a>. To delete an account, use <a href="/dashboard">Remove an account</a> on the dashboard.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

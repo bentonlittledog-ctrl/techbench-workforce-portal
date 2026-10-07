@@ -30,6 +30,21 @@ app.use(session({
 // 2.2 Lets async routes pass errors to the error handler instead of hanging or crashing
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// 2.2b Keep the signed-in person's name and role current, so promotions and removals apply immediately
+app.use(wrap(async (req, res, next) => {
+    if (req.session.userID) {
+        const u = await db.get('SELECT name, is_admin, is_district FROM employees WHERE id = ?', [req.session.userID]);
+        if (!u) return req.session.destroy(() => res.redirect('/'));
+        if (u.is_admin !== req.session.admin || u.is_district !== req.session.district) {
+            req.session.admin = u.is_admin;
+            req.session.district = u.is_district;
+            delete req.session.theme;
+        }
+        req.session.name = u.name;
+    }
+    next();
+}));
+
 // 2.25 Menu information available to every page
 app.use((req, res, next) => {
     res.locals.nav = {
@@ -61,7 +76,7 @@ app.use(wrap(async (req, res, next) => {
         if (req.session.themePreview) {
             key = req.session.themePreview;
         } else {
-            if (!req.session.theme) {
+            if (!req.session.theme || Date.now() - (req.session.themeAt || 0) > 5 * 60 * 1000) {
                 let found = 'district';
                 if (req.session.district !== 1) {
                     const rows = await db.all(
@@ -73,6 +88,7 @@ app.use(wrap(async (req, res, next) => {
                     if (rows.length === 1 && ui.SITE_THEME[rows[0].name]) found = ui.SITE_THEME[rows[0].name];
                 }
                 req.session.theme = found;
+                req.session.themeAt = Date.now();
             }
             key = req.session.theme;
         }
@@ -375,6 +391,7 @@ require('./extras')(app, () => db, wrap);
 require('./foundation').mount(app, () => db, wrap);
 require('./scope').mount(app, () => db, wrap);
 require('./editing')(app, () => db, wrap);
+require('./accounts')(app, () => db, wrap);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)
