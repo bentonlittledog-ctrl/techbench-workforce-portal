@@ -11,102 +11,120 @@ const pad = n => String(n).padStart(2, '0');
 const toMin = t => parseInt(t.slice(0, 2), 10) * 60 + parseInt(t.slice(3, 5), 10);
 const spanHours = r => ((toMin(r.end_time) - toMin(r.start_time)) / 60).toFixed(2);
 
-// ---------- Page templates (same water.css look as the rest of the app) ----------
+// ---------- Page templates (shared look: public/app.css, sidebar from ui.js) ----------
+const { headTags } = require('./ui');
 const head = title =>
     '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>' + title + '</title>' +
-    '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">' +
-    '</head><body><p><a href="/dashboard">&larr; Back to dashboard</a></p>';
+    '<title>' + title + ' - Timecard Portal</title>' + headTags +
+    '</head><body><%- navHtml %>';
 
-const FORM_TPL = head('Request Missed Hours') + `
-<h2>Request Missed Hours</h2>
-<p>Use this if you forgot to clock in or out. Your request stays <strong>pending</strong> until an administrator approves it, and only approved hours count toward your pay.</p>
-<% if (message) { %><p><strong><%= message %></strong></p><% } %>
-<form action="/requests" method="POST">
+const FORM_TPL = head('Request missed hours') + `
+<h1>Request missed hours</h1>
+<p class="sub">Use this if you forgot to clock in or out. Your request stays <strong>pending</strong> until a manager approves it, and only approved hours count toward your pay.</p>
+<% if (message) { %><div class="msg" role="status"><%= message %></div><% } %>
+<form action="/requests" method="POST" class="panel" style="max-width:560px;">
   <label for="work_date">Date worked</label>
   <input type="date" id="work_date" name="work_date" required>
-  <label for="start_time">Start time</label>
-  <input type="time" id="start_time" name="start_time" required>
-  <label for="end_time">End time</label>
-  <input type="time" id="end_time" name="end_time" required>
-  <p>Worked past midnight? Submit two requests, one for each day.</p>
+  <div class="row">
+    <div><label for="start_time">Start time</label><input type="time" id="start_time" name="start_time" required></div>
+    <div><label for="end_time">End time</label><input type="time" id="end_time" name="end_time" required></div>
+  </div>
+  <p class="hint" style="margin-top:8px;">Worked past midnight? Submit two requests, one for each day.</p>
   <label for="note">Reason</label>
   <input type="text" id="note" name="note" maxlength="200" placeholder="e.g. Forgot to clock in" required>
   <button type="submit">Submit for approval</button>
 </form>
-<h3>My Requests</h3>
+<h3>My requests</h3>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Date</th><th>Time</th><th>Hours</th><th>Reason</th><th>Status</th></tr></thead>
+  <thead><tr><th>Date</th><th>Time</th><th class="num">Hours</th><th>Reason</th><th>Status</th></tr></thead>
   <tbody>
   <% requests.forEach(r => { %>
-    <tr><td><%= r.work_date %></td><td><%= r.start_time %> - <%= r.end_time %></td><td><%= r.hours %></td><td><%= r.note %></td><td><%= r.status %></td></tr>
+    <tr><td><%= r.work_date %></td><td class="mono"><%= r.start_time %> - <%= r.end_time %></td><td class="num"><%= r.hours %></td><td><%= r.note %></td>
+    <td><span class="badge <%= r.status === 'APPROVED' ? 'ok' : (r.status === 'DENIED' ? 'bad' : 'warn') %>"><%= r.status %></span></td></tr>
   <% }) %>
+  <% if (!requests.length) { %><tr><td colspan="5" class="empty">You haven't requested any missed hours.</td></tr><% } %>
   </tbody>
 </table>
+</div>
 </body></html>`;
 
-const ADMIN_TPL = head('Pending Hour Requests') + `
-<h2>Pending Hour Requests</h2>
-<% if (message) { %><p><strong><%= message %></strong></p><% } %>
+const ADMIN_TPL = head('Pending requests') + `
+<h1>Pending requests</h1>
+<p class="sub">Missed-hours requests from the people you manage. Approving adds a normal clock-in and clock-out to their timecard.</p>
+<% if (message) { %><div class="msg" role="status"><%= message %></div><% } %>
 <% if (!pending.length) { %>
-  <p>No requests are waiting for approval.</p>
+  <div class="panel">No requests are waiting for approval.</div>
 <% } else { %>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Employee</th><th>Date</th><th>Time</th><th>Hours</th><th>Reason</th><th>Decision</th></tr></thead>
+  <thead><tr><th>Employee</th><th>Date</th><th>Time</th><th class="num">Hours</th><th>Reason</th><th>Status</th><th>Decision</th></tr></thead>
   <tbody>
   <% pending.forEach(r => { %>
     <tr>
-      <td><%= r.name %></td><td><%= r.work_date %></td><td><%= r.start_time %> - <%= r.end_time %></td><td><%= r.hours %></td><td><%= r.note %></td>
-      <td>
-        <form action="/admin/requests/<%= r.id %>/approve" method="POST" style="display:inline"><button type="submit">Approve</button></form>
-        <form action="/admin/requests/<%= r.id %>/deny" method="POST" style="display:inline"><button type="submit">Deny</button></form>
+      <td><%= r.name %></td><td><%= r.work_date %></td><td class="mono"><%= r.start_time %> - <%= r.end_time %></td><td class="num"><%= r.hours %></td><td><%= r.note %></td>
+      <td><span class="badge warn">PENDING</span></td>
+      <td style="white-space:nowrap;">
+        <form action="/admin/requests/<%= r.id %>/approve" method="POST"><button type="submit" class="btn-ok">Approve</button></form>
+        <form action="/admin/requests/<%= r.id %>/deny" method="POST"><button type="submit" class="btn-ghost">Deny</button></form>
       </td>
     </tr>
   <% }) %>
   </tbody>
 </table>
+</div>
 <% } %>
-<h3>Recently Reviewed</h3>
+<h3>Recently reviewed</h3>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Employee</th><th>Date</th><th>Time</th><th>Hours</th><th>Status</th><th>Reviewed by</th></tr></thead>
+  <thead><tr><th>Employee</th><th>Date</th><th>Time</th><th class="num">Hours</th><th>Status</th><th>Reviewed by</th></tr></thead>
   <tbody>
   <% reviewed.forEach(r => { %>
-    <tr><td><%= r.name %></td><td><%= r.work_date %></td><td><%= r.start_time %> - <%= r.end_time %></td><td><%= r.hours %></td><td><%= r.status %></td><td><%= r.reviewer || '' %></td></tr>
+    <tr><td><%= r.name %></td><td><%= r.work_date %></td><td class="mono"><%= r.start_time %> - <%= r.end_time %></td><td class="num"><%= r.hours %></td>
+    <td><span class="badge <%= r.status === 'APPROVED' ? 'ok' : 'bad' %>"><%= r.status %></span></td><td><%= r.reviewer || '' %></td></tr>
   <% }) %>
+  <% if (!reviewed.length) { %><tr><td colspan="6" class="empty">Nothing reviewed yet.</td></tr><% } %>
   </tbody>
 </table>
+</div>
 </body></html>`;
 
-const CARD_TPL = head('Past Timecards') + `
-<h2>Past Timecards</h2>
-<form action="/timecards" method="GET">
+const CARD_TPL = head('Past timecards') + `
+<h1>Past timecards</h1>
+<p class="sub">Look up completed shifts for any month.</p>
+<form action="/timecards" method="GET" class="row panel">
   <% if (employees.length) { %>
-    <label for="employeeId">Employee</label>
-    <select id="employeeId" name="employeeId">
-      <% employees.forEach(e => { %>
-        <option value="<%= e.id %>" <%= e.id === empId ? 'selected' : '' %>><%= e.name %></option>
-      <% }) %>
-    </select>
+    <div>
+      <label for="employeeId">Employee</label>
+      <select id="employeeId" name="employeeId">
+        <% employees.forEach(e => { %>
+          <option value="<%= e.id %>" <%= e.id === empId ? 'selected' : '' %>><%= e.name %></option>
+        <% }) %>
+      </select>
+    </div>
   <% } %>
-  <label for="month">Month</label>
-  <input type="month" id="month" name="month" value="<%= month %>">
-  <button type="submit">View</button>
+  <div><label for="month">Month</label><input type="month" id="month" name="month" value="<%= month %>"></div>
+  <div style="flex:0 0 auto;"><button type="submit">View</button></div>
 </form>
-<h3><%= empName %> - <%= monthLabel %></h3>
-<p>Base rate: $<%= rate %>/hr</p>
+<h3 style="margin-top:8px;"><%= empName %> &middot; <%= monthLabel %></h3>
+<div class="stats">
+  <div class="stat"><div class="k">Base rate</div><div class="v">$<%= rate %><small>/hr</small></div></div>
+  <div class="stat"><div class="k">Hours</div><div class="v"><%= totalHours %></div></div>
+  <div class="stat"><div class="k">Pay</div><div class="v">$<%= totalPay %></div></div>
+</div>
+<div class="table-wrap">
 <table>
-  <thead><tr><th>Date</th><th>Time (Punch Span)</th><th>Hours</th><th>Amount($)</th></tr></thead>
+  <thead><tr><th>Date</th><th>Time</th><th class="num">Hours</th><th class="num">Amount</th></tr></thead>
   <tbody>
   <% shifts.forEach(s => { %>
-    <tr><td><%= s.date %></td><td><%= s.time %></td><td><%= s.hours %> hrs</td><td>$<%= s.amount %></td></tr>
+    <tr><td><%= s.date %></td><td class="mono"><%= s.time %></td><td class="num"><%= s.hours %></td><td class="num">$<%= s.amount %></td></tr>
   <% }) %>
-  <% if (!shifts.length) { %><tr><td colspan="4">No completed shifts this month.</td></tr><% } %>
+  <% if (!shifts.length) { %><tr><td colspan="4" class="empty">No completed shifts this month.</td></tr><% } %>
   </tbody>
-  <tfoot>
-    <tr><td colspan="2" style="text-align:right"><strong>Totals:</strong></td><td><strong><%= totalHours %> hrs</strong></td><td><strong>$<%= totalPay %></strong></td></tr>
-  </tfoot>
+  <tfoot><tr><td colspan="2">Total</td><td class="num"><%= totalHours %></td><td class="num">$<%= totalPay %></td></tr></tfoot>
 </table>
+</div>
 </body></html>`;
 
 // ---------- Routes ----------
@@ -152,7 +170,7 @@ module.exports = function (app, getDb, wrap) {
             [req.session.userID]
         );
         const requests = rows.map(r => ({ ...r, hours: spanHours(r) }));
-        res.status(status).send(ejs.render(FORM_TPL, { message, requests }));
+        res.status(status).send(ejs.render(FORM_TPL, { navHtml: res.locals.navHtml, message, requests }));
     }
 
     app.get('/requests/new', wrap(async (req, res) => {
@@ -223,7 +241,7 @@ module.exports = function (app, getDb, wrap) {
             LEFT JOIN employees a ON a.id = r.reviewed_by
             WHERE r.status != 'PENDING' AND ${scope.sql} ORDER BY r.reviewed_at DESC, r.id DESC LIMIT 20
         `, scope.params)).map(r => ({ ...r, hours: spanHours(r) }));
-        res.send(ejs.render(ADMIN_TPL, { pending, reviewed, message: messages[req.query.msg] || null }));
+        res.send(ejs.render(ADMIN_TPL, { navHtml: res.locals.navHtml, pending, reviewed, message: messages[req.query.msg] || null }));
     }));
 
     app.post('/admin/requests/:id/approve', wrap(async (req, res) => {
@@ -344,6 +362,7 @@ module.exports = function (app, getDb, wrap) {
         }
 
         res.send(ejs.render(CARD_TPL, {
+            navHtml: res.locals.navHtml,
             employees,
             empId,
             empName: emp.name,

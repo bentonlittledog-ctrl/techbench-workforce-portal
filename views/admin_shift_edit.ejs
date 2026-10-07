@@ -3,40 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Shift</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <title>Edit shift - Timecard Portal</title>
+    <%- headTags %>
 </head>
 <body>
     <%- include('partials/nav') %>
-    <h2>Edit Shift</h2>
-    <p><a href="/admin/shifts?employeeId=<%= emp.id %>&month=<%= month %>">&larr; Back to <%= emp.name %>'s timecard</a></p>
+    <h1>Edit shift</h1>
+    <p class="sub"><a href="/admin/shifts?employeeId=<%= emp.id %>&month=<%= month %>">&larr; Back to <%= emp.name %>'s timecard</a></p>
 
-    <% if (message) { %><p><strong style="color:#ff6b6b;"><%= message %></strong></p><% } %>
+    <% if (message) { %><div class="msg bad" role="alert"><%= message %></div><% } %>
 
-    <p>Employee: <strong><%= emp.name %></strong><br>Current shift: <strong><%= current %></strong></p>
+    <div class="stats">
+        <div class="stat"><div class="k">Employee</div><div class="v" style="font-family:var(--sans);font-size:20px;"><%= emp.name %></div></div>
+        <div class="stat"><div class="k">Current shift</div><div class="v" style="font-size:16px;"><%= current %></div></div>
+    </div>
 
-    <h3>Change the times</h3>
-    <form action="/admin/shifts/edit" method="POST">
-        <input type="hidden" name="inId" value="<%= inId %>">
-        <input type="hidden" name="outId" value="<%= outId %>">
-        <label for="start">Start</label>
-        <input type="datetime-local" id="start" name="start" value="<%= startInput %>" required>
-        <label for="end">End</label>
-        <input type="datetime-local" id="end" name="end" value="<%= endInput %>" required>
-        <label for="reason">Reason (kept in the audit log)</label>
-        <input type="text" id="reason" name="reason" maxlength="300" placeholder="e.g. Clocked out late, confirmed with supervisor" required>
-        <button type="submit">Save changes</button>
-    </form>
+    <div class="grid2">
+        <div class="panel">
+            <h3>Change the times</h3>
+            <form action="/admin/shifts/edit" method="POST">
+                <input type="hidden" name="inId" value="<%= inId %>">
+                <input type="hidden" name="outId" value="<%= outId %>">
+                <label for="start">Start</label>
+                <input type="datetime-local" id="start" name="start" value="<%= startInput %>" required>
+                <label for="end">End</label>
+                <input type="datetime-local" id="end" name="end" value="<%= endInput %>" required>
+                <label for="reason">Reason (kept in the audit log)</label>
+                <input type="text" id="reason" name="reason" maxlength="300" placeholder="e.g. Clocked out late, confirmed with supervisor" required>
+                <button type="submit">Save changes</button>
+            </form>
+        </div>
 
-    <hr>
-    <h3>Delete this shift</h3>
-    <p>Use this for duplicates or shifts entered by mistake. The original times are saved in the audit log.</p>
-    <form action="/admin/shifts/delete" method="POST">
-        <input type="hidden" name="inId" value="<%= inId %>">
-        <input type="hidden" name="outId" value="<%= outId %>">
-        <label for="delReason">Reason</label>
-        <input type="text" id="delReason" name="reason" maxlength="300" placeholder="e.g. Duplicate entry" required>
-        <button type="submit" style="background:#cb2431; color:#fff;" onclick="return confirm('Delete this shift?');">Delete shift</button>
-    </form>
+        <div class="panel">
+            <h3>Delete this shift</h3>
+            <p class="hint">Use this for duplicates or shifts entered by mistake. The original times are saved in the audit log.</p>
+            <form action="/admin/shifts/delete" method="POST">
+                <input type="hidden" name="inId" value="<%= inId %>">
+                <input type="hidden" name="outId" value="<%= outId %>">
+                <label for="delReason">Reason</label>
+                <input type="text" id="delReason" name="reason" maxlength="300" placeholder="e.g. Duplicate entry" required>
+                <button type="submit" class="btn-danger" onclick="return confirm('Delete this shift?');">Delete shift</button>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

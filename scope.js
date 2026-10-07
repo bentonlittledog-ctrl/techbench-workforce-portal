@@ -68,82 +68,99 @@ async function allowedUnits(db, session) {
 }
 
 // ---------- District-only page: sites, programs, assignments ----------
+const { headTags } = require('./ui');
 const ORG_TPL =
     '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>Sites and Programs</title>' +
-    '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">' +
-    '</head><body><p><a href="/dashboard">&larr; Back to dashboard</a></p>' + `
-<h2>Sites, Programs and Assignments</h2>
-<% if (message) { %><p><strong><%= message %></strong></p><% } %>
+    '<title>Sites and assignments - Timecard Portal</title>' + headTags +
+    '</head><body><%- navHtml %>' + `
+<h1>Sites and assignments</h1>
+<p class="sub">Set up schools and programs, and decide who works or manages where.</p>
+<% if (message) { %><div class="msg" role="status"><%= message %></div><% } %>
 
-<h3>Sites</h3>
-<p><%= sites.map(s => s.name).join(' | ') %></p>
-<form action="/admin/org/site" method="POST">
-  <input type="text" name="name" placeholder="New site name" maxlength="80" required>
-  <button type="submit">Add site</button>
-</form>
+<div class="grid2">
+  <div class="panel">
+    <h3>Sites</h3>
+    <p><% sites.forEach(s => { %><span class="badge" style="margin:0 6px 6px 0;"><%= s.name %></span><% }) %></p>
+    <form action="/admin/org/site" method="POST">
+      <label for="siteName">New site</label>
+      <input type="text" id="siteName" name="name" maxlength="80" required>
+      <button type="submit">Add site</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h3>Programs</h3>
+    <p><% programs.forEach(p => { %><span class="badge" style="margin:0 6px 6px 0;"><%= p.name %></span><% }) %></p>
+    <form action="/admin/org/program" method="POST">
+      <label for="programName">New program</label>
+      <input type="text" id="programName" name="name" maxlength="80" required>
+      <button type="submit">Add program</button>
+    </form>
+  </div>
+</div>
 
-<h3>Programs</h3>
-<p><%= programs.map(p => p.name).join(' | ') %></p>
-<form action="/admin/org/program" method="POST">
-  <input type="text" name="name" placeholder="New program name" maxlength="80" required>
-  <button type="submit">Add program</button>
-</form>
+<div class="grid2">
+  <div class="panel">
+    <h3>Add an assignment</h3>
+    <p class="hint">Employees can work in more than one site or program, and managers can oversee more than one. Choose "All programs" to give a manager a whole site.</p>
+    <form action="/admin/org/assign" method="POST">
+      <label for="accountId">Account</label>
+      <select id="accountId" name="employeeId" required>
+        <option value="">Choose an account</option>
+        <% accounts.forEach(a => { %>
+          <option value="<%= a.id %>"><%= a.name %> (<%= a.username %>) - <%= a.is_district ? 'District administrator' : (a.is_admin ? 'Manager' : 'Employee') %></option>
+        <% }) %>
+      </select>
+      <label for="siteId">Site</label>
+      <select id="siteId" name="site_id" required>
+        <% sites.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
+      </select>
+      <label for="programId">Program</label>
+      <select id="programId" name="program_id" required>
+        <option value="ALL">All programs (managers only)</option>
+        <% programs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %>
+      </select>
+      <button type="submit">Add assignment</button>
+    </form>
+  </div>
 
-<h3>Add an assignment to an existing account</h3>
-<p>Employees can work in more than one site/program. Managers can oversee more than one. Choose "All programs" to give a manager a whole site.</p>
-<form action="/admin/org/assign" method="POST">
-  <label for="accountId">Account</label>
-  <select id="accountId" name="employeeId" required>
-    <option value="">-- Choose account --</option>
-    <% accounts.forEach(a => { %>
-      <option value="<%= a.id %>"><%= a.name %> (<%= a.username %>) - <%= a.is_district ? 'District administrator' : (a.is_admin ? 'Manager' : 'Employee') %></option>
-    <% }) %>
-  </select>
-  <label for="siteId">Site</label>
-  <select id="siteId" name="site_id" required>
-    <% sites.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
-  </select>
-  <label for="programId">Program</label>
-  <select id="programId" name="program_id" required>
-    <option value="ALL">All programs (managers only)</option>
-    <% programs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %>
-  </select>
-  <button type="submit">Add assignment</button>
-</form>
-
-<h3>Assign several accounts at once</h3>
-<p>These accounts have no site or program yet. Tick the people, choose where they work, and assign them together.</p>
-<% if (!unassigned.length) { %>
-  <p>Every account is already assigned.</p>
-<% } else { %>
-<form action="/admin/org/bulk" method="POST">
-  <% unassigned.forEach(a => { %>
-    <label style="display:block"><input type="checkbox" name="employeeIds" value="<%= a.id %>"> <%= a.name %> (<%= a.username %>) - <%= a.is_admin ? 'Manager' : 'Employee' %></label>
-  <% }) %>
-  <label for="bulkSite">Site</label>
-  <select id="bulkSite" name="site_id" required>
-    <% sites.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
-  </select>
-  <label for="bulkProgram">Program</label>
-  <select id="bulkProgram" name="program_id" required>
-    <option value="ALL">All programs (managers only)</option>
-    <% programs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %>
-  </select>
-  <button type="submit">Assign selected accounts</button>
-</form>
-<% } %>
+  <div class="panel">
+    <h3>Assign several accounts at once</h3>
+    <% if (!unassigned.length) { %>
+      <p class="hint">Every account is already assigned.</p>
+    <% } else { %>
+    <p class="hint">These accounts have no site or program yet. Tick the people, choose where they work, and assign them together.</p>
+    <form action="/admin/org/bulk" method="POST">
+      <% unassigned.forEach(a => { %>
+        <label><input type="checkbox" name="employeeIds" value="<%= a.id %>"> <%= a.name %> (<%= a.username %>) - <%= a.is_admin ? 'Manager' : 'Employee' %></label>
+      <% }) %>
+      <label for="bulkSite">Site</label>
+      <select id="bulkSite" name="site_id" required>
+        <% sites.forEach(s => { %><option value="<%= s.id %>"><%= s.name %></option><% }) %>
+      </select>
+      <label for="bulkProgram">Program</label>
+      <select id="bulkProgram" name="program_id" required>
+        <option value="ALL">All programs (managers only)</option>
+        <% programs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %>
+      </select>
+      <button type="submit">Assign selected accounts</button>
+    </form>
+    <% } %>
+  </div>
+</div>
 
 <h3>Current assignments</h3>
+<div class="table-wrap">
 <table>
   <thead><tr><th>Account</th><th>Level</th><th>Site</th><th>Program</th></tr></thead>
   <tbody>
   <% assignments.forEach(r => { %>
     <tr><td><%= r.name %></td><td><%= r.level %></td><td><%= r.site_name %></td><td><%= r.program_name %></td></tr>
   <% }) %>
+  <% if (!assignments.length) { %><tr><td colspan="4" class="empty">No assignments yet.</td></tr><% } %>
   </tbody>
 </table>
+</div>
 </body></html>`;
 
 const ORG_MESSAGES = {
@@ -183,6 +200,7 @@ function mount(app, getDb, wrap) {
             ORDER BY 1, 3, 4
         `);
         res.send(ejs.render(ORG_TPL, {
+            navHtml: res.locals.navHtml,
             sites, programs, accounts, assignments, unassigned,
             message: ORG_MESSAGES[req.query.msg] || null
         }));

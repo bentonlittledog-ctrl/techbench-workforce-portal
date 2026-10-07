@@ -4,6 +4,8 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const setupDb = require('./database');
 const { visibleSql, canManage, manageableAccounts, allowedUnits } = require('./scope');
+const path = require('path');
+const ui = require('./ui');
 
 // 2.0 Configure server application
 const app = express();
@@ -12,6 +14,7 @@ const app = express();
 app.get('/health', (req, res) => res.send('ok'));
 
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));  // app.css
 app.set('view engine', 'ejs');
 
 // 2.1 Secure session memory
@@ -45,6 +48,48 @@ app.use(wrap(async (req, res, next) => {
         const u = await db.get('SELECT is_district FROM employees WHERE id = ?', [req.session.userID]);
         req.session.district = u ? u.is_district : 0;
     }
+    next();
+}));
+
+// 2.4 School-color theme: logged-in people get their site's colors, visitors get the one in the link or cookie
+app.use(wrap(async (req, res, next) => {
+    let key = 'district';
+    if (req.session.userID) {
+        if (req.session.district === 1 && req.query.theme !== undefined) {   // district admins can preview: ?theme=glacier (or ?theme=district to reset)
+            req.session.themePreview = ui.THEMES[req.query.theme] ? req.query.theme : null;
+        }
+        if (req.session.themePreview) {
+            key = req.session.themePreview;
+        } else {
+            if (!req.session.theme) {
+                let found = 'district';
+                if (req.session.district !== 1) {
+                    const rows = await db.all(
+                        `SELECT DISTINCT s.name FROM sites s WHERE s.id IN
+                           (SELECT site_id FROM memberships WHERE employee_id = ?
+                            UNION SELECT site_id FROM scopes WHERE employee_id = ?)`,
+                        [req.session.userID, req.session.userID]
+                    );
+                    if (rows.length === 1 && ui.SITE_THEME[rows[0].name]) found = ui.SITE_THEME[rows[0].name];
+                }
+                req.session.theme = found;
+            }
+            key = req.session.theme;
+        }
+    } else {
+        const fromCookie = (/(?:^|;\s*)site=(\w+)/.exec(req.headers.cookie || '') || [])[1];
+        const fromHost = ui.themeKeyForHost(req.hostname);   // a school's own web address wins over the cookie
+        const wanted = typeof req.query.site === 'string' ? req.query.site : (fromHost || fromCookie);
+        if (ui.THEMES[wanted]) key = wanted;
+        res.locals.hostLocked = !!fromHost && typeof req.query.site !== 'string';   // school's own address: hide the school switcher
+        if (typeof req.query.site === 'string' && ui.THEMES[req.query.site] && !fromHost) {
+            res.cookie('site', req.query.site, { maxAge: 365 * 24 * 3600 * 1000, sameSite: 'lax' });
+        }
+    }
+    const theme = ui.themeFor(key);
+    res.locals.theme = theme;
+    res.locals.navHtml = ui.navHtml(res.locals.nav, theme);
+    res.locals.headTags = ui.headTags + ui.themeStyle(theme);
     next();
 }));
 
@@ -193,10 +238,16 @@ app.get('/dashboard', wrap(async (req, res) => {
     // Button state comes from the newest log entry (even if archived)
     let currentStatus = 'CLOCKED_OUT';
     const newestLog = await db.get(
-        'SELECT action FROM logs WHERE employee_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1',
+        'SELECT action, timestamp FROM logs WHERE employee_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1',
         [req.session.userID]
     );
     if (newestLog) currentStatus = newestLog.action;
+    // When the current shift started (UTC text -> milliseconds) for the live timer
+    let sinceMs = null;
+    if (newestLog && newestLog.action === 'CLOCK_IN') {
+        const t = Date.parse(String(newestLog.timestamp).replace(' ', 'T') + 'Z');
+        if (!isNaN(t)) sinceMs = t;
+    }
 
     // 6.3 Payment calculator and grouping engine
     const currentShifts = pairShifts(activeLogs, profile.hourly_rate).map(s => s.shift);
@@ -223,6 +274,7 @@ app.get('/dashboard', wrap(async (req, res) => {
         totalHours: totalBillableHours.toFixed(2),
         totalPayout: totalCompanyPayout.toFixed(2),
         currentStatus: currentStatus,
+        sinceMs: sinceMs,
         error: error
     });
 }));

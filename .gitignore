@@ -7,3 +7,8 @@ timecards.db*
 backups
 backups
 run.log
+techbench-update*.zip
+*.db
+*.db-shm
+*.db-wal
+run.log

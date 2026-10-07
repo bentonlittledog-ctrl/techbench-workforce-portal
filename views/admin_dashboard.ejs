@@ -3,132 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Timesheet Transcriber</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-    <style>
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #455a64; padding: 10px; text-align: center; }
-        th { background-color: #202b36; font-weight: bold; text-transform: uppercase; }
-        .admin-box { background: #202b36; padding: 15px; border-radius: 6px; border: 1px solid #455a64; margin-bottom: 20px; }
-    </style>
+    <title>Dashboard - Timecard Portal</title>
+    <%- headTags %>
 </head>
 <body>
     <%- include('partials/nav') %>
-    <h2>Administrative Operations</h2>
+    <h1>Admin dashboard</h1>
+    <p class="sub">Accounts and shifts for the sites and programs you manage.</p>
 
-    <!-- User Management Operations Center Panel -->
-    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
-        <!-- Form A: Add User Profile Account -->
-        <details class="admin-box" style="flex: 1; min-width: 280px;">
-            <summary><strong>Add User Profile Account</strong></summary>
+    <div class="grid2">
+        <details class="panel">
+            <summary>Add an account</summary>
             <form action="/admin/users/add" method="POST">
-                <input type="text" name="name" placeholder="Full Legal Name" required style="margin-bottom:10px; width:100%;">
-                <input type="text" name="username" placeholder="Username" required style="margin-bottom:10px; width:100%;">
-                <input type="password" name="password" placeholder="Password" required style="margin-bottom:10px; width:100%;">
-                <input type="number" name="hourly_rate" step="0.01" placeholder="Hourly Rate ($/hr)" required style="margin-bottom:10px; width:100%;">
+                <label for="name">Full legal name</label>
+                <input type="text" id="name" name="name" required>
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" autocapitalize="none" required>
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+                <label for="hourly_rate">Hourly rate ($/hr)</label>
+                <input type="number" id="hourly_rate" name="hourly_rate" step="0.01" required>
 
-                <label for="siteSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
-                    School / Location:
-                </label>
-                <select id="siteSelect" name="site_id" style="width: 100%; padding: 10px; margin-bottom: 10px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
-                    <option value="">-- Choose school / location --</option>
+                <label for="siteSelect">School / location</label>
+                <select id="siteSelect" name="site_id">
+                    <option value="">Choose school / location</option>
                 </select>
-                <label for="programSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-bottom: 6px; color: #fff;">
-                    Activity / Program:
-                </label>
-                <select id="programSelect" name="program_id" style="width: 100%; padding: 10px; margin-bottom: 10px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
-                    <option value="">-- Choose a school first --</option>
+                <label for="programSelect">Activity / program</label>
+                <select id="programSelect" name="program_id">
+                    <option value="">Choose a school first</option>
                 </select>
                 <script type="application/json" id="unitData"><%- JSON.stringify(units.map(u => ({ site_id: u.site_id, program_id: u.program_id, label: u.label }))).replace(/</g, '\\u003c') %></script>
 
                 <% if (isDistrict) { %>
-                    <label for="roleSelect" style="font-weight: bold; font-size: 0.95em; display: block; margin-top: 15px; margin-bottom: 6px; color: #fff;">
-                        Assign System Security Role:
-                    </label>
-                    <select id="roleSelect" name="is_admin" required style="width: 100%; padding: 10px; margin-bottom: 20px; background-color: #161f27; color: #fff; border: 1px solid #455a64; border-radius: 4px; font-size: 1em;">
-                        <option value="0">Regular Staff Worker (Timesheet Only)</option>
+                    <label for="roleSelect">Role</label>
+                    <select id="roleSelect" name="is_admin" required>
+                        <option value="0">Employee (timesheet only)</option>
                         <option value="1">Manager (manages the site / program chosen above)</option>
-                        <option value="2">District Administrator (everything; no site needed)</option>
+                        <option value="2">District administrator (everything, no site needed)</option>
                     </select>
                 <% } else { %>
                     <input type="hidden" name="is_admin" value="0">
-                    <p style="font-size: 0.9em;">New accounts you add are regular staff in the site / program above.</p>
+                    <p class="hint" style="margin-top:14px;">New accounts you add are employees in the site / program above.</p>
                 <% } %>
-
-                <button type="submit" style="background-color: #2ea44f; width:100%; font-weight: bold;">Save New Roster Account</button>
+                <button type="submit" class="wide">Save account</button>
             </form>
         </details>
 
-        <!-- Form B: Terminate/Remove User Profile Account -->
-        <details class="admin-box" style="flex: 1; min-width: 280px;">
-            <summary><strong>Remove User Account Profile</strong></summary>
+        <details class="panel">
+            <summary>Remove an account</summary>
             <form action="/admin/users/remove" method="POST">
-                <label for="removeSelect">Select Account to Delete:</label>
-                <select id="removeSelect" name="employeeId" required style="margin-bottom:15px; width:100%;">
-                    <option value="">-- Choose Account to Terminate --</option>
+                <label for="removeSelect">Account</label>
+                <select id="removeSelect" name="employeeId" required>
+                    <option value="">Choose an account</option>
                     <% users.forEach(user => { %>
-                        <option value="<%= user.id %>">
-                            <%= user.name %> (<%= user.username %>) (<%= user.is_district ? 'District Administrator' : (user.is_admin ? 'Manager' : 'Regular Staff Worker') %>)
-                        </option>
+                        <option value="<%= user.id %>"><%= user.name %> (<%= user.username %>) - <%= user.is_district ? 'District administrator' : (user.is_admin ? 'Manager' : 'Employee') %></option>
                     <% }) %>
                 </select>
-                <button type="submit" style="background-color: #cb2431; width:100%; font-weight: bold; padding: 12px; border-radius: 4px; border: none; color: #fff;">
-                    Permanently Delete User Profile
-                </button>
+                <p class="hint" style="margin-top:12px;">This permanently deletes the account and its timecards.</p>
+                <button type="submit" class="btn-danger wide" onclick="return confirm('Permanently delete this account and all of its timecards?');">Delete account</button>
             </form>
         </details>
     </div>
 
-    <hr style="border-color: #455a64; margin: 30px 0;">
-
-    <h3>Digital Paysheet Transcription View</h3>
-
-    <!-- Filter Dropdown Selection Matrix Form Tool -->
-    <div style="margin-bottom: 20px;">
-        <label for="employeeFilter" style="font-weight: bold; margin-right: 10px;">Filter View by Employee:</label>
-        <select id="employeeFilter" onchange="applyMatrixFilter()" style="max-width: 300px; background-color: #202b36; color: #fff;">
-            <option value="ALL">-- Show Entire Company Records --</option>
-            <% const names = [...new Set(shifts.map(s => s.name))]; names.forEach(empName => { %>
-                <option value="<%= empName %>"><%= empName %></option>
-            <% }) %>
-        </select>
+    <h3>Shifts</h3>
+    <div class="row" style="margin-bottom:6px;">
+        <div>
+            <label for="employeeFilter">Filter by employee</label>
+            <select id="employeeFilter" onchange="applyMatrixFilter()">
+                <option value="ALL">Everyone</option>
+                <% const names = [...new Set(shifts.map(s => s.name))]; names.forEach(empName => { %>
+                    <option value="<%= empName %>"><%= empName %></option>
+                <% }) %>
+            </select>
+        </div>
     </div>
 
+    <div class="table-wrap">
     <table>
         <thead>
-            <tr>
-                <th>Work-Describe</th>
-                <th>Hourly-Rate</th>
-                <th>Date</th>
-                <th>Time (Punch Span)</th>
-                <th>HOURS-Worked</th>
-                <th>Amount($)</th>
-            </tr>
+            <tr><th>Employee</th><th class="num">Rate</th><th>Date</th><th>Time</th><th class="num">Hours</th><th class="num">Amount</th></tr>
         </thead>
         <tbody id="timesheetBody">
             <% shifts.forEach(shift => { %>
                 <tr data-name="<%= shift.name %>">
-                    <td><strong>GHS Tech Bench (<%= shift.name %>)</strong></td>
-                    <td>$<%= parseFloat(shift.rate).toFixed(2) %></td>
+                    <td><%= shift.name %></td>
+                    <td class="num">$<%= parseFloat(shift.rate).toFixed(2) %></td>
                     <td><%= shift.date %></td>
-                    <td style="color: #8a99ad;"><%= shift.time %></td>
-                    <td style="font-weight: bold; color: #f1c40f;"><%= parseFloat(shift.hours).toFixed(2) %> hrs</td>
-                    <td style="font-weight: bold; color: #2ecc71;">$<%= parseFloat(shift.amount).toFixed(2) %></td>
+                    <td class="mono"><%= shift.time %></td>
+                    <td class="num"><%= parseFloat(shift.hours).toFixed(2) %></td>
+                    <td class="num">$<%= parseFloat(shift.amount).toFixed(2) %></td>
                 </tr>
             <% }) %>
+            <% if (!shifts.length) { %><tr><td colspan="6" class="empty">No completed shifts yet.</td></tr><% } %>
         </tbody>
         <tfoot>
-            <tr style="background-color: #1a242f; font-weight: bold; border-top: 2px solid #455a64;">
-                <td colspan="4" style="text-align: right; text-transform: uppercase; padding-right: 20px;">
-                    <strong>Grand Totals Due:</strong>
-                </td>
-                <td id="totalHoursCell" style="color: #f1c40f; font-size: 1.1em;"><%= totalHours %> hrs</td>
-                <td id="totalPayoutCell" style="color: #2ecc71; font-size: 1.1em;">$<%= totalPayout %></td>
+            <tr>
+                <td colspan="4">Total</td>
+                <td class="num" id="totalHoursCell"><%= totalHours %></td>
+                <td class="num" id="totalPayoutCell">$<%= totalPayout %></td>
             </tr>
         </tfoot>
     </table>
+    </div>
 
-    <!-- School -> activity dropdowns -->
     <script>
         (function () {
             const units = JSON.parse(document.getElementById("unitData").textContent);
@@ -144,7 +121,7 @@
             siteSel.addEventListener("change", () => {
                 progSel.innerHTML = "";
                 const first = document.createElement("option");
-                first.value = ""; first.textContent = siteSel.value ? "-- Choose activity / program --" : "-- Choose a school first --";
+                first.value = ""; first.textContent = siteSel.value ? "Choose activity / program" : "Choose a school first";
                 progSel.appendChild(first);
                 units.filter(u => String(u.site_id) === siteSel.value).forEach(u => {
                     const o = document.createElement("option");
@@ -154,35 +131,20 @@
                 });
             });
         })();
-    </script>
 
-    <!-- Client-side Interactive Filter Script -->
-    <script>
         function applyMatrixFilter() {
             const selector = document.getElementById("employeeFilter").value;
-            const rows = document.querySelectorAll("#timesheetBody tr");
-            let calculatedHours = 0;
-            let calculatedPayout = 0;
-
-            rows.forEach(row => {
-                const rowName = row.getAttribute("data-name");
-
-                // Pull true numbers straight from text data cells
-                const hoursVal = parseFloat(row.cells[4].textContent) || 0;
-                const payoutVal = parseFloat(row.cells[5].textContent.replace('$', '')) || 0;
-
-                if (selector === "ALL" || rowName === selector) {
-                    row.style.display = ""; // Show
-                    calculatedHours += hoursVal;
-                    calculatedPayout += payoutVal;
-                } else {
-                    row.style.display = "none"; // Hide
+            let hours = 0, payout = 0;
+            document.querySelectorAll("#timesheetBody tr[data-name]").forEach(row => {
+                const show = selector === "ALL" || row.getAttribute("data-name") === selector;
+                row.style.display = show ? "" : "none";
+                if (show) {
+                    hours += parseFloat(row.cells[4].textContent) || 0;
+                    payout += parseFloat(row.cells[5].textContent.replace("$", "")) || 0;
                 }
             });
-
-            // Update footer totals calculation dynamically
-            document.getElementById("totalHoursCell").textContent = calculatedHours.toFixed(2) + " hrs";
-            document.getElementById("totalPayoutCell").textContent = "$" + calculatedPayout.toFixed(2);
+            document.getElementById("totalHoursCell").textContent = hours.toFixed(2);
+            document.getElementById("totalPayoutCell").textContent = "$" + payout.toFixed(2);
         }
     </script>
 </body>

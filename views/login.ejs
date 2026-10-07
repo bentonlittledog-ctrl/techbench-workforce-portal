@@ -1,37 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Login - TechBench Portal</title>
-	<!-- Drop a minimal dark dark-theme CSS framework directly from a CDN -->
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in - Timecard Portal</title>
+    <%- headTags %>
 </head>
-<body>
-	<main style="max-width: 420px; margin: 60px auto; padding: 10px;">
-		<h2 style="text-align: center; color: #2eec71;">TechBench Workforce Portal</h2>
-		<p style=" text-align: center; color:#8a99ad;">Please sign in to access your timecard dashboard.</p>
-
-		<!-- Dynamic error Banner (Triggers automatically if index.js sends an error string -->
-		<% if (error) { %>
-			<div style="background: rgba(203, 36, 49, 0.15); border: 1px solid #cb2341; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
-				<span style="color: #ff6b6b; font-weight: bold;"><%= error %></span>
-			</div>
-		<% } %>
-
-		<!-- Core Sign-In Form (The action must match your app.post('/login') route) -->
-		<form action="/login" method="POST">
-			<label for="username">Username</label>
-			<input type="text" id="username" name="username" required placeholder="e.g. employee">
-
-			<label for="password">Password</label>
-			<input type="password" id="password" name="password" required placeholder="**********">
-
-			<button type="submit" style="width: 100%; padding: 12px; font-weight: bold; background-color: #2ea44f; margin-top: 15px;">
-				Secure Sign in
-			</button>
-		</form>
-	</main>
+<body class="login">
+    <section class="brandpane">
+        <span class="mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div>
+            <div class="site"><%= theme.name %></div>
+            <h1><%= theme.tagline %></h1>
+            <p>Clock in and out, request missed hours, and print your payroll claim form from one place.</p>
+        </div>
+        <p class="hint" style="color:#8fa0ba;margin:0;">Kalispell School District No. 5</p>
+    </section>
+    <section class="formpane">
+        <% if (theme.logo) { %><img class="crest" src="<%= theme.logo %>" alt="<%= theme.name %> logo"><% } %>
+        <h2>Sign in</h2>
+        <p class="sub" style="margin-bottom:18px;">Use the username and password from your supervisor.</p>
+        <% if (error) { %><div class="msg bad" role="alert"><%= error %></div><% } %>
+        <form action="/login" method="POST">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" autocomplete="username" autocapitalize="none" required autofocus>
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required>
+            <button type="submit">Sign in</button>
+        </form>
+        <p class="hint" style="margin-top:18px;">Forgot your password? Ask your supervisor to reset it.</p>
+        <% if (!(typeof hostLocked !== 'undefined' && hostLocked)) { %><div class="switch" aria-label="Choose your school">
+            <a href="/?site=district" class="<%= theme.key === 'district' ? 'on' : '' %>">District</a>
+            <a href="/?site=glacier" class="<%= theme.key === 'glacier' ? 'on' : '' %>">Glacier</a>
+            <a href="/?site=flathead" class="<%= theme.key === 'flathead' ? 'on' : '' %>">Flathead</a>
+            <a href="/?site=linderman" class="<%= theme.key === 'linderman' ? 'on' : '' %>">Linderman</a>
+        </div><% } %>
+    </section>
 </body>
 </html>
-

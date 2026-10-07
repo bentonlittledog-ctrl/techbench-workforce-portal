@@ -52,11 +52,16 @@ const CSS = `
 @page { size: letter landscape; margin: 0.3in; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff; margin: 0; }
-.controls { background: #f2f2f2; border-bottom: 1px solid #bbb; padding: 10px 16px; font-size: 14px; }
-.controls label { margin-right: 6px; }
-.controls input, .controls select { margin-right: 14px; padding: 4px; font-size: 14px; }
-.controls button { padding: 6px 14px; font-size: 14px; cursor: pointer; }
-.controls .hint { font-size: 12px; color: #444; margin-top: 6px; }
+.controls { background: #0d1624; color: #c6d0e0; padding: 14px 20px; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.controls a { color: #9fb0cc; text-decoration: none; }
+.controls a:hover { color: #fff; }
+.controls form { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.controls label { display: block; font-size: 12px; color: #8fa0ba; margin-bottom: 3px; }
+.controls .f { display: flex; flex-direction: column; }
+.controls input, .controls select { padding: 8px 10px; font-size: 14px; background: #16233a; color: #fff; border: 1px solid #2a3b5a; border-radius: 6px; color-scheme: dark; min-height: 36px; }
+.controls button { padding: 9px 16px; font-size: 14px; cursor: pointer; border-radius: 6px; border: 1px solid #2a3b5a; background: #16233a; color: #fff; min-height: 36px; }
+.controls button.go { background: #2a5bff; border-color: #2a5bff; font-weight: 500; }
+.controls .hint { font-size: 12px; color: #8fa0ba; margin-top: 10px; }
 .sheet { width: 10.3in; margin: 0 auto; padding: 8px 0; page-break-after: always; }
 .sheet:last-child { page-break-after: auto; }
 table { border-collapse: collapse; }
@@ -193,12 +198,13 @@ function pageHtml(ctx) {
         '<title>Payroll Claim Form - ' + esc(ctx.name) + '</title><style>' + CSS + '</style></head><body>' +
         '<div class="controls">' +
         '<a href="/dashboard">&larr; Back to dashboard</a>' +
-        '<form action="/timecards/print" method="GET" style="margin-top:8px;">' + people +
-        '<label for="from">From</label><input type="date" id="from" name="from" value="' + esc(ctx.from) + '">' +
-        '<label for="to">To</label><input type="date" id="to" name="to" value="' + esc(ctx.to) + '">' +
-        '<label for="describe">Work description</label><input type="text" id="describe" name="describe" maxlength="80" value="' + esc(ctx.describe) + '" style="width:210px;">' +
-        '<button type="submit">Update</button> ' +
-        '<button type="button" onclick="window.print()" style="background:#2ea44f;color:#fff;border:1px solid #2a8a45;">Print / Save as PDF</button>' +
+        '<form action="/timecards/print" method="GET" style="margin-top:10px;">' +
+        (people ? '<div class="f">' + people + '</div>' : '') +
+        '<div class="f"><label for="from">From</label><input type="date" id="from" name="from" value="' + esc(ctx.from) + '"></div>' +
+        '<div class="f"><label for="to">To</label><input type="date" id="to" name="to" value="' + esc(ctx.to) + '"></div>' +
+        '<div class="f"><label for="describe">Work description</label><input type="text" id="describe" name="describe" maxlength="80" value="' + esc(ctx.describe) + '" style="width:210px;"></div>' +
+        '<button type="submit">Update</button>' +
+        '<button type="button" class="go" onclick="window.print()">Print / Save as PDF</button>' +
         '</form>' +
         '<div class="hint">In the print window, choose <strong>Save as PDF</strong> as the destination to make a PDF. The signature, address and approval lines stay blank to be filled in by hand.</div>' +
         '</div>' +

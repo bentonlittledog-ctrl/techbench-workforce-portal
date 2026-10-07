@@ -3,27 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Timecards</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-    <style>
-        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        th, td { border: 1px solid #455a64; padding: 8px; text-align: center; }
-        th { background-color: #202b36; text-transform: uppercase; font-size: 0.85em; }
-        .admin-box { background: #202b36; padding: 12px 15px; border-radius: 6px; border: 1px solid #455a64; margin: 14px 0; }
-        td form { margin: 0; display: inline-block; }
-        td input[type="text"], td input[type="datetime-local"] { margin: 2px 0; max-width: 200px; }
-    </style>
+    <title>Edit timecards - Timecard Portal</title>
+    <%- headTags %>
 </head>
 <body>
     <%- include('partials/nav') %>
-    <h2>Edit Timecards</h2>
+    <h1>Edit timecards</h1>
+    <p class="sub">Add, change or delete shifts. Every change is saved to the audit log with your reason.</p>
 
-    <% if (message) { %><p><strong><%= message %></strong></p><% } %>
+    <% if (message) { %><div class="msg" role="status"><%= message %></div><% } %>
 
     <% if (!people.length) { %>
-        <p>There are no employees in your areas yet.</p>
+        <div class="panel">There are no employees in your areas yet.</div>
     <% } else { %>
-    <form action="/admin/shifts" method="GET" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+    <form action="/admin/shifts" method="GET" class="row panel">
         <div>
             <label for="employeeId">Employee</label>
             <select id="employeeId" name="employeeId">
@@ -36,62 +29,66 @@
             <label for="month">Month</label>
             <input type="month" id="month" name="month" value="<%= month %>">
         </div>
-        <div><button type="submit">View</button></div>
+        <div style="flex:0 0 auto;"><button type="submit">View</button></div>
     </form>
 
-    <h3><%= emp.name %> - <%= monthLabel %></h3>
+    <h3 style="margin-top:8px;"><%= emp.name %> &middot; <%= monthLabel %></h3>
 
-    <details class="admin-box">
-        <summary><strong>Add a shift</strong></summary>
+    <div class="stats">
+        <div class="stat"><div class="k">Shifts</div><div class="v"><%= shifts.length %></div></div>
+        <div class="stat"><div class="k">Hours</div><div class="v"><%= totalHours %></div></div>
+        <div class="stat"><div class="k">Pay</div><div class="v">$<%= totalPay %></div></div>
+    </div>
+
+    <details class="panel">
+        <summary>Add a shift</summary>
         <form action="/admin/shifts/add" method="POST">
             <input type="hidden" name="employeeId" value="<%= empId %>">
-            <label for="addStart">Start</label>
-            <input type="datetime-local" id="addStart" name="start" required>
-            <label for="addEnd">End</label>
-            <input type="datetime-local" id="addEnd" name="end" required>
+            <div class="row">
+                <div><label for="addStart">Start</label><input type="datetime-local" id="addStart" name="start" required></div>
+                <div><label for="addEnd">End</label><input type="datetime-local" id="addEnd" name="end" required></div>
+            </div>
             <label for="addReason">Reason (kept in the audit log)</label>
             <input type="text" id="addReason" name="reason" maxlength="300" placeholder="e.g. Forgot to clock in, confirmed by supervisor" required>
             <button type="submit">Add shift</button>
         </form>
     </details>
 
+    <div class="table-wrap">
     <table>
         <thead>
-            <tr><th>Date</th><th>Time</th><th>Hours</th><th>Amount($)</th><th>Action</th></tr>
+            <tr><th>Date</th><th>Time</th><th class="num">Hours</th><th class="num">Amount</th><th></th></tr>
         </thead>
         <tbody>
             <% shifts.forEach(s => { %>
                 <tr>
                     <td><%= s.date %></td>
-                    <td><%= s.time %></td>
-                    <td><%= s.hours %> hrs</td>
-                    <td>$<%= s.amount %></td>
-                    <td><a href="/admin/shifts/edit?in=<%= s.inId %>&out=<%= s.outId %>">Edit / delete</a></td>
+                    <td class="mono"><%= s.time %></td>
+                    <td class="num"><%= s.hours %></td>
+                    <td class="num">$<%= s.amount %></td>
+                    <td class="r"><a href="/admin/shifts/edit?in=<%= s.inId %>&out=<%= s.outId %>">Edit or delete</a></td>
                 </tr>
             <% }) %>
-            <% if (!shifts.length) { %><tr><td colspan="5">No completed shifts this month.</td></tr><% } %>
+            <% if (!shifts.length) { %><tr><td colspan="5" class="empty">No completed shifts this month.</td></tr><% } %>
         </tbody>
         <tfoot>
-            <tr style="font-weight:bold;">
-                <td colspan="2" style="text-align:right;">Totals:</td>
-                <td><%= totalHours %> hrs</td>
-                <td>$<%= totalPay %></td>
-                <td></td>
-            </tr>
+            <tr><td colspan="2">Total</td><td class="num"><%= totalHours %></td><td class="num">$<%= totalPay %></td><td></td></tr>
         </tfoot>
     </table>
+    </div>
 
     <% if (strays.length) { %>
         <h3>Punches without a match</h3>
-        <p>These are a clock-in with no clock-out, or a clock-out with no clock-in. They don't count toward pay until fixed. Add the missing punch, or delete a mistaken one.</p>
+        <p class="hint">These are a clock-in with no clock-out, or a clock-out with no clock-in. They don't count toward pay until fixed. Add the missing punch, or delete a mistaken one.</p>
+        <div class="table-wrap">
         <table>
             <thead><tr><th>Punch</th><th>When</th><th>Fix</th></tr></thead>
             <tbody>
                 <% strays.forEach(p => { %>
                     <tr>
-                        <td><%= p.action === 'CLOCK_IN' ? 'Clock in' : 'Clock out' %></td>
-                        <td><%= p.when %></td>
-                        <td style="text-align:left;">
+                        <td><span class="badge warn"><%= p.action === 'CLOCK_IN' ? 'Clock in' : 'Clock out' %></span></td>
+                        <td class="mono"><%= p.when %></td>
+                        <td>
                             <form action="/admin/shifts/complete" method="POST">
                                 <input type="hidden" name="punchId" value="<%= p.id %>">
                                 <label>Add the missing <%= p.action === 'CLOCK_IN' ? 'clock-out' : 'clock-in' %> time</label>
@@ -102,13 +99,14 @@
                             <form action="/admin/shifts/punch-delete" method="POST">
                                 <input type="hidden" name="punchId" value="<%= p.id %>">
                                 <input type="text" name="reason" maxlength="300" placeholder="Reason for deleting" required>
-                                <button type="submit" style="background:#cb2431; color:#fff;">Delete punch</button>
+                                <button type="submit" class="btn-danger">Delete punch</button>
                             </form>
                         </td>
                     </tr>
                 <% }) %>
             </tbody>
         </table>
+        </div>
     <% } %>
     <% } %>
 </body>

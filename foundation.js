@@ -90,29 +90,29 @@ function scrubSessions(file) {
 }
 
 // ---------- 3. Password reset page ----------
+const { headTags } = require('./ui');
 const RESET_TPL =
     '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>Reset a Password</title>' +
-    '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">' +
-    '</head><body><p><a href="/dashboard">&larr; Back to dashboard</a></p>' + `
-<h2>Reset an Account Password</h2>
-<% if (message) { %><p><strong><%= message %></strong></p><% } %>
-<form action="/admin/users/reset" method="POST">
+    '<title>Reset password - Timecard Portal</title>' + headTags +
+    '</head><body><%- navHtml %>' + `
+<h1>Reset a password</h1>
+<p class="sub">Choose an account and set a temporary password. Give it to the person in person; accounts can't change their own password yet.</p>
+<% if (message) { %><div class="msg" role="status"><%= message %></div><% } %>
+<form action="/admin/users/reset" method="POST" class="panel" style="max-width:520px;">
   <label for="employeeId">Account</label>
   <select id="employeeId" name="employeeId" required>
-    <option value="">-- Choose account --</option>
+    <option value="">Choose an account</option>
     <% users.forEach(u => { %>
       <option value="<%= u.id %>"><%= u.name %> (<%= u.username %>)</option>
     <% }) %>
   </select>
   <label for="password">New temporary password (at least 8 characters)</label>
-  <input type="password" id="password" name="password" minlength="8" required>
+  <input type="password" id="password" name="password" minlength="8" autocomplete="new-password" required>
   <label for="confirm">Type it again</label>
-  <input type="password" id="confirm" name="confirm" minlength="8" required>
-  <button type="submit">Reset Password</button>
+  <input type="password" id="confirm" name="confirm" minlength="8" autocomplete="new-password" required>
+  <button type="submit">Reset password</button>
 </form>
-<p>Give the person their new password in person. Accounts can't change their own password yet.</p>
 </body></html>`;
 
 const RESET_MESSAGES = {
@@ -153,6 +153,7 @@ function mount(app, getDb, wrap) {
         if (req.session.admin !== 1) return res.redirect('/');
         const users = await manageableAccounts(getDb(), req.session);
         res.send(ejs.render(RESET_TPL, {
+            navHtml: res.locals.navHtml,
             users,
             message: RESET_MESSAGES[req.query.msg] || null
         }));
