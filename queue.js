@@ -1,5 +1,6 @@
 // Repair queue: every repair logged through the Repair Logger form becomes an active ticket here.
 const bench = require('./bench');
+const tiers = require('./tiers');
 
 const STATUSES = ['Awaiting Assignment', 'Awaiting Diagnostic', 'Awaiting Repair', 'Awaiting Parts', 'Diagnostic in Progress', 'Quality Assurance Inspection',
     'Repair in Progress', 'Need to Order Parts', 'Repaired - Ready for Pickup', 'Unrepairable', 'Returned to Student'];
@@ -98,19 +99,33 @@ function mount(app, getDb, wrap) {
             if (!stu.id) return { ok: false, error: 'Enter the student ID number.' };
             if (!stu.grade) return { ok: false, error: 'Choose the student\'s grade.' };
         }
+        let tier = one(f.tier, 40), tierWhy = '';
+        if (/^[1-4]$/.test(tier)) tier = tiers.label(parseInt(tier, 10));
+        const partList = tiers.splitParts(f.parts);
+        if (!tiers.num(tier)) {                     // nothing usable from the form: work it out from the parts
+            const special = tiers.SPECIALS.find(x => String(f.notes || '').includes(x)) || '';
+            const g = tiers.classify(partList, special);
+            if (g.tier) { tier = tiers.label(g.tier); tierWhy = g.why; }
+        }
         const row = parseInt(f.sheet_row, 10);
         const r = await db.run(
             `INSERT INTO repair_tickets (created_by, created_by_name, model, serial, complaint, parts, tier, priority, status, source, sheet_row, client_ref,
                 student_first, student_last, student_id, student_grade)
              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            [req.session.userID, req.session.name || '', model, one(f.serial, 40), multi(f.complaint, 600), one(f.parts, 400), one(f.tier, 40),
+            [req.session.userID, req.session.name || '', model, one(f.serial, 40), multi(f.complaint, 600), one(f.parts, 400), tier,
              PRIORITIES.includes(f.priority) ? f.priority : 'Normal', FIRST, source, row > 0 ? row : null, ref, stu.first, stu.last, stu.id, stu.grade]);
         await event(db, r.lastID, req, 'created', source === 'form' ? 'Logged from the Repair Logger form' : 'Created in the portal');
+        if (tierWhy) await event(db, r.lastID, req, 'tier', 'Suggested ' + tier + ' (' + tierWhy.toLowerCase() + ')'); 
         if (f.notes && multi(f.notes, 600)) await event(db, r.lastID, req, 'note', multi(f.notes, 600));
         return { ok: true, id: r.lastID };
     }
 
     // ---------- the queue ----------
+    const tierView = t => { const n = tiers.num(t.tier); return n ? { n, label: tiers.label(n), fee: tiers.TIERS[n].fee, items: tiers.TIERS[n].items } : { n: 0, label: t.tier || '', fee: null }; };
+    const suggest = t => {
+        const g = tiers.classify(tiers.splitParts(t.parts), '');
+        return g.tier && g.tier !== tiers.num(t.tier) ? { n: g.tier, label: tiers.label(g.tier), fee: tiers.TIERS[g.tier].fee, why: g.why, other: g.other } : null;
+    };
     const SORTS = { priority: 'Priority, then oldest', newest: 'Newest first', oldest: 'Oldest first', updated: 'Recently updated', longest: 'Open the longest' };
     const day = ts => { const d = new Date(String(ts || '').replace(' ', 'T') + 'Z'); return isNaN(d) ? '' : d.toLocaleDateString('en-CA', { timeZone: 'America/Denver' }); };   // YYYY-MM-DD in Mountain time
     const isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
@@ -123,6 +138,7 @@ function mount(app, getDb, wrap) {
             status: STATUSES.includes(Q.status) ? Q.status : '',
             assignee: one(Q.assignee, 12),                      // '', 'none', 'me' or an employee id
             priority: PRIORITIES.includes(Q.priority) ? Q.priority : '',
+            tier: ['1', '2', '3', '4', 'none'].includes(Q.tier) ? Q.tier : '',
             model: one(Q.model, 120),
             from: isDate(Q.from) ? Q.from : '', to: isDate(Q.to) ? Q.to : '',
             sort: SORTS[Q.sort] ? Q.sort : 'priority'
@@ -150,6 +166,7 @@ function mount(app, getDb, wrap) {
         else if (f.assignee === 'me') rows = rows.filter(t => t.assigned_to === me);
         else if (/^\d+$/.test(f.assignee)) rows = rows.filter(t => String(t.assigned_to) === f.assignee);
         if (f.priority) rows = rows.filter(t => t.priority === f.priority);
+        if (f.tier) rows = rows.filter(t => (tiers.num(t.tier) || 'none') == f.tier);
         if (f.model) rows = rows.filter(t => t.model === f.model);
         if (f.from) rows = rows.filter(t => day(t.created_at) >= f.from);
         if (f.to) rows = rows.filter(t => day(t.created_at) <= f.to);
@@ -163,14 +180,14 @@ function mount(app, getDb, wrap) {
         f.sort = sort;
         rows.sort(by[sort]);
         const total = rows.length;
-        rows = rows.slice(0, 300).map(t => Object.assign({}, t, { age: ageDays(t.created_at, t.closed_at), tone: tone(t.status), when: fmt(t.created_at), student: nameOf(t) }));
+        rows = rows.slice(0, 300).map(t => Object.assign({}, t, { age: ageDays(t.created_at, t.closed_at), tone: tone(t.status), when: fmt(t.created_at), student: nameOf(t), tierN: tiers.num(t.tier) }));
         const devices = await db.all("SELECT d.name FROM devices d JOIN programs p ON p.id = d.program_id WHERE p.name = 'Student Tech Work Bench' ORDER BY d.brand, d.name").catch(() => []);
         const models = [...new Set(all.map(t => t.model))].sort((a, b) => a.localeCompare(b));
-        const filterKeys = ['q', 'status', 'assignee', 'priority', 'model', 'from', 'to'];
+        const filterKeys = ['q', 'status', 'assignee', 'priority', 'tier', 'model', 'from', 'to'];
         const activeFilters = filterKeys.filter(k => f[k]).length;
         const qs = filterKeys.concat(['sort']).filter(k => f[k] && !(k === 'sort' && !Q.sort)).map(k => k + '=' + encodeURIComponent(f[k])).join('&');
         res.render('bench_queue', { flash: takeFlash(req), view, f, sorts: SORTS, count, rows, total, models, activeFilters, qs, people: await people(db),
-            devices: devices.map(d => d.name), statuses: STATUSES, grades: GRADES, priorities: PRIORITIES, me });
+            devices: devices.map(d => d.name), statuses: STATUSES, grades: GRADES, priorities: PRIORITIES, TIERS: tiers.TIERS, me });
     }));
 
     app.post('/bench/queue/new', wrap(async (req, res) => {
@@ -197,6 +214,7 @@ function mount(app, getDb, wrap) {
             .map(h => Object.assign({}, h, { when: fmt(h.created_at) })) : [];
         res.render('bench_ticket', {
             flash: takeFlash(req), t: Object.assign({}, t, { student: nameOf(t), age: ageDays(t.created_at, t.closed_at), tone: tone(t.status), when: fmt(t.created_at), closedWhen: fmt(t.closed_at) }),
+            tier: tierView(t), suggestion: suggest(t), TIERS: tiers.TIERS,
             events, history, grades: GRADES, statuses: STATUSES, priorities: PRIORITIES, people: await people(db), me: req.session.userID, isAdmin: req.session.admin === 1
         });
     }));
@@ -253,12 +271,27 @@ function mount(app, getDb, wrap) {
         if (!model) { flash(req, 'The device model cannot be blank.', true); return back(res, t.id); }
         const grade = GRADES.includes(one(b.student_grade, 10)) ? one(b.student_grade, 10) : t.student_grade;
         const n = { student_grade: grade, student_first: one(b.student_first, 40), student_last: one(b.student_last, 40), student_id: sid(b.student_id), model, serial: one(b.serial, 40), complaint: multi(b.complaint, 600), parts: one(b.parts, 400), tier: one(b.tier, 40), priority: PRIORITIES.includes(b.priority) ? b.priority : t.priority };
+        { const want = tiers.num(b.tier);
+          n.tier = !b.tier ? '' : want ? (want === tiers.num(t.tier) ? t.tier : tiers.label(want)) : t.tier; }
         const changed = Object.keys(n).filter(k => String(n[k]) !== String(t[k] == null ? '' : t[k]));
         if (changed.length) {
             await db.run('UPDATE repair_tickets SET model=?, serial=?, complaint=?, parts=?, tier=?, priority=?, student_first=?, student_last=?, student_id=?, student_grade=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
                 [n.model, n.serial, n.complaint, n.parts, n.tier, n.priority, n.student_first, n.student_last, n.student_id, n.student_grade, t.id]);
             await event(db, t.id, req, 'edit', 'Changed: ' + changed.join(', '));
             flash(req, 'Ticket updated.');
+        }
+        back(res, t.id);
+    }));
+
+    app.post('/bench/ticket/tier', wrap(async (req, res) => {
+        const db = await gate(req, res); if (!db) return;
+        const t = await getTicket(db, req.body && req.body.id); if (!t) return res.redirect('/bench/queue');
+        const n = parseInt(req.body.tier, 10);
+        if (!tiers.TIERS[n]) { flash(req, 'Choose a tier.', true); return back(res, t.id); }
+        if (n !== tiers.num(t.tier)) {
+            await db.run('UPDATE repair_tickets SET tier = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [tiers.label(n), t.id]);
+            await event(db, t.id, req, 'tier', (t.tier ? t.tier + ' \u2192 ' : '') + tiers.label(n));
+            flash(req, 'Repair tier is now ' + tiers.label(n) + '.');
         }
         back(res, t.id);
     }));

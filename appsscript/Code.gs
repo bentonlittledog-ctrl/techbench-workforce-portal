@@ -114,6 +114,43 @@ function submitOrder(v) {
   log_('order', model + ' | ' + part + ' x' + qty + (notes ? ' | ' + notes : ''), r.row);
   return { ok: true, row: r.row };
 }
+// ---- Repair tiers (the district repair fee schedule) ----
+var TIER_INFO_ = {
+  1: { name: 'Basic Repair', fee: 25, items: ['Keyboard', 'Trackpad', 'Bezel', 'Battery', 'Camera', 'Charger / AC adapter', 'Protective case', 'Other small parts, as assessed by KPS'],
+       note: 'Each additional Basic Repair item in the same incident may move the claim to the next tier.' },
+  2: { name: 'Moderate Repair', fee: 100, items: ['Screen', 'Palmrest assembly', 'Hinges', 'Body damage (2+ areas)', 'Other standard parts, as assessed by KPS'],
+       note: 'Each additional Standard Repair item in the same incident may move the claim to the next tier. Two or more Basic Repair items in the same incident may be billed at this tier.' },
+  3: { name: 'Advanced Repair', fee: 200, items: ['Motherboard', 'Other major parts, as assessed by KPS'],
+       note: 'A combination of Basic and Standard Repair items in the same incident may be billed at this tier.' },
+  4: { name: 'Device Replacement', fee: 400, items: ['Device lost', 'Device stolen (police report required)', 'Damage beyond repair', 'Device not returned at check-in'], note: '' }
+};
+var SPECIALS_ = ['Device lost', 'Device stolen (police report required)', 'Damage beyond repair', 'Device not returned at check-in'];
+
+// Suggests a tier from the parts picked. The form uses this exact function in the browser (see pageHtml_).
+function classifyTier_(parts, special) {
+  var major = /motherboard|logic board|mainboard|system board/i;
+  var std = /screen|lcd|display|digitizer|palm ?rest|hinge|body damage|top cover|bottom cover|chassis|housing/i;
+  var basic = /keyboard|track ?pad|touch ?pad|bezel|battery|camera|webcam|charger|adapter|power cord|case/i;
+  var nM = 0, nS = 0, nB = 0, other = [];
+  (parts || []).forEach(function (p) {
+    p = String(p);
+    if (major.test(p)) nM++;
+    else if (std.test(p)) nS++;
+    else { nB++; if (!basic.test(p)) other.push(p); }
+  });
+  var tier = null, why = '';
+  if (special) { tier = 4; why = 'Lost, stolen, beyond repair or not returned'; }
+  else if (nM) { tier = 3; why = 'It includes a major part'; }
+  else if (nS) {
+    if (nS >= 2) { tier = 3; why = 'Two or more standard repair items'; }
+    else if (nB >= 1) { tier = 3; why = 'Standard and basic repair items together'; }
+    else { tier = 2; why = 'A standard repair item'; }
+  }
+  else if (nB >= 2) { tier = 2; why = 'Two or more basic repair items'; }
+  else if (nB === 1) { tier = 1; why = 'One basic repair item'; }
+  return { tier: tier, why: why, other: other };
+}
+
 function submitRepair(v) {
   v = v || {};
   var L = getLists_();
@@ -126,8 +163,10 @@ function submitRepair(v) {
   if (!clean_(v.sfirst, 40) || !clean_(v.slast, 40) || !clean_(v.sid, 20) || !clean_(v.sgrade, 10)) throw new Error('Enter the student\'s first and last name, student ID number and grade.');
   var complaint = clean_(v.complaint, 400);
   if (!complaint) throw new Error('Describe the chief complaint (what is wrong with the device).');
+  var special = clean_(v.special, 80);
+  if (special && SPECIALS_.indexOf(special) < 0) throw new Error('Choose the special case from the list.');
   var extra = clean_(v.notes, 400);
-  var notes = complaint + (extra ? ' | Notes: ' + extra : '');
+  var notes = complaint + (special ? ' | Special case: ' + special : '') + (extra ? ' | Notes: ' + extra : '');
   var vals = { model: model, serial: serial, parts: picked.join(', '), tier: tier, flow: flow, notes: notes };
   var r = withLock_(function () { return addRow_(TABS.repair, vals); });
   log_('repair', model + ' | ' + serial + ' | ' + (vals.parts || 'no parts') + ' | ' + tier + ' | ' + flow + (notes ? ' | ' + notes : ''), r.row);
@@ -145,7 +184,7 @@ function pageHtml_(page, embed, accent, c) {
   if (embed && c.line) css += 'form,select,input[type=text],input[type=number],textarea{border-color:' + c.line + '}';
   var base = '';
   try { base = ScriptApp.getService().getUrl() || ''; } catch (e) {}
-  return PAGE_HTML.replace('__PAGE__', page).replace('__PO__', embed && c.po ? c.po : '').split('__BASE__').join(base)
+  return PAGE_HTML.split('__TIERS__').join(JSON.stringify(TIER_INFO_)).split('__SPECIALS__').join(JSON.stringify(SPECIALS_)).split('__CLASSIFY__').join(classifyTier_.toString()).replace('__PAGE__', page).replace('__PO__', embed && c.po ? c.po : '').split('__BASE__').join(base)
     .split('#12843f').join(accent || '#12843f')
     .replace('<body', embed ? '<body class="embed"' : '<body')
     .replace('</style>', css + '</style>');
@@ -162,12 +201,14 @@ select,input[type=text],input[type=number],textarea{width:100%;padding:10px 12px
 textarea{min-height:90px}.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:2px 12px}.checks label{display:flex;gap:8px;align-items:center;margin:4px 0;font-weight:400;color:#121a2a}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
 button{margin-top:18px;padding:11px 18px;border:0;border-radius:6px;background:#12843f;color:#fff;font:inherit;font-weight:600;cursor:pointer}button:disabled{opacity:.55;cursor:default}
+.hint{color:#5d6b82;font-size:13px;margin:8px 0 0}.tg{margin-top:12px;font-size:14px}.tg summary{cursor:pointer;font-weight:600}.tgi{margin:10px 0}.tgi ul{margin:4px 0 4px 18px;padding:0}.tgi em{color:#5d6b82;font-size:13px}.fee{color:#12843f;font-weight:700;margin-left:6px}
 .msg{padding:10px 14px;border-radius:6px;margin:0 0 14px;border-left:3px solid #12843f;background:#fff}.msg.bad{border-left-color:#c0392b;background:#fde8e6}
 </style></head><body><div class="wrap">
 <div class="tabs"><a id="t-order" href="__BASE__?page=order" target="_top">Order a part</a><a id="t-repair" href="__BASE__?page=repair" target="_top">Log a repair</a></div>
 <h1 id="h"></h1><p class="sub" id="sub">Loading...</p><div id="msg"></div><form id="f" style="display:none"></form>
 <script>
-var PAGE = '__PAGE__', PO = '__PO__', D = null;
+var PAGE = '__PAGE__', PO = '__PO__', D = null, TIERS = __TIERS__, SPECIALS = __SPECIALS__;
+__CLASSIFY__
 function fail(t) { var m = document.getElementById('msg'); if (m) m.innerHTML = '<div class="msg bad">' + String(t).replace(/</g, '&lt;') + '</div>'; var s = document.getElementById('sub'); if (s) s.textContent = ''; }
 window.onerror = function (msg, src, line) { fail('Page error: ' + msg + ' (line ' + line + ')'); };
 setTimeout(function () { if (!D) fail('Still loading after 20 seconds. Reload the page; if it keeps happening, tell the person who manages the portal.'); }, 20000);
@@ -179,6 +220,41 @@ function sel(name, list, label) {
   h += '<select name="' + name + '" required><option value="">Choose...</option>';
   list.forEach(function (x) { h += '<option>' + esc(x) + '</option>'; });
   return h + '</select>';
+}
+function money(n) { return '$' + n; }
+function tierGuide() {
+  var h = '<details class="tg"><summary>What do the repair tiers mean?</summary>';
+  [1, 2, 3, 4].forEach(function (n) {
+    var t = TIERS[n];
+    h += '<div class="tgi"><strong>Tier ' + n + ' - ' + esc(t.name) + '</strong> <span class="fee">' + money(t.fee) + '</span><ul>';
+    t.items.forEach(function (i) { h += '<li>' + esc(i) + '</li>'; });
+    h += '</ul>' + (t.note ? '<em>' + esc(t.note) + '</em>' : '') + '</div>';
+  });
+  return h + '</details>';
+}
+function tierText(n) { return 'Tier ' + n + ' - ' + TIERS[n].name; }
+function wireTier(f) {
+  var tsel = f.elements['tier'], touched = false, hint = el('tierhint');
+  if (!tsel) return;
+  tsel.addEventListener('change', function () { touched = true; hint.textContent = ''; });
+  function refresh() {
+    if (touched) return;
+    var parts = [];
+    for (var i = 0; i < f.elements.length; i++) { var e = f.elements[i]; if (e.name === 'parts' && e.checked) parts.push(e.value); }
+    var r = classifyTier_(parts, f.elements['special'].value);
+    if (!r.tier) { hint.textContent = ''; return; }
+    var found = false;
+    if (tsel.tagName === 'SELECT') {
+      for (var j = 0; j < tsel.options.length; j++) {
+        var tx = tsel.options[j].text.toLowerCase().split(' ').join('');
+        var at = tx.indexOf('tier' + r.tier);
+        if (at >= 0 && !/[0-9]/.test(tx.charAt(at + 5))) { tsel.selectedIndex = j; found = true; break; }
+      }
+    } else { tsel.value = tierText(r.tier); found = true; }
+    hint.textContent = 'Suggested ' + tierText(r.tier) + ' (' + money(TIERS[r.tier].fee) + '): ' + r.why.charAt(0).toLowerCase() + r.why.slice(1) + '. ' +
+      (r.other.length ? 'Not sure how to rate: ' + r.other.join(', ') + ' (counted as a basic part). ' : '') + (found ? 'Change it if it is wrong.' : 'Pick the matching tier below.');
+  }
+  f.addEventListener('change', function (ev) { if (ev.target !== tsel) refresh(); });
 }
 function show(t, bad) { el('msg').innerHTML = '<div class="msg' + (bad ? ' bad' : '') + '">' + esc(t) + '</div>'; }
 function build() {
@@ -205,10 +281,15 @@ function build() {
     h += '<label>Chief complaint (what is wrong with it?)</label><textarea name="complaint" maxlength="400" required></textarea>';
     h += '<label>Parts needed (tick everything that applies, or none)</label><div class="checks">';
     L.repairParts.forEach(function (p) { h += '<label><input type="checkbox" name="parts" value="' + esc(p) + '"> ' + esc(p) + '</label>'; });
-    h += '</div><div class="two"><div>' + sel('tier', L.tiers, 'Repair tier') + '</div><div>' + sel('flow', L.flows, 'Status') + '</div></div>';
+    h += '</div><label>Special case (only if the device is lost, stolen, beyond repair or not returned)</label><select name="special"><option value="">None</option>';
+    SPECIALS.forEach(function (x) { h += '<option>' + esc(x) + '</option>'; });
+    h += '</select>';
+    h += '<div class="two"><div>' + sel('tier', L.tiers, 'Repair tier') + '</div><div>' + sel('flow', L.flows, 'Status') + '</div></div>';
+    h += '<div id="tierhint" class="hint"></div>' + tierGuide();
     h += '<label>Extra repair notes (optional)</label><textarea name="notes" maxlength="400"></textarea><button type="submit">Add to Repair Logger</button>';
   }
   f.innerHTML = h; f.style.display = 'block';
+  if (PAGE === 'repair') wireTier(f);
   f.onsubmit = function (ev) {
     ev.preventDefault();
     var b = f.querySelector('button'), v = {};
@@ -224,7 +305,7 @@ function build() {
       try {
         if (PAGE === 'repair' && PO && window.top !== window) {
           window.top.postMessage({ type: 'tb-repair-logged', ref: v.ref, row: r.row, student_first: v.sfirst, student_last: v.slast, student_id: v.sid, student_grade: v.sgrade, model: v.model, serial: v.serial, complaint: v.complaint,
-            parts: (v.parts || []).join(', '), tier: v.tier, notes: [v.flow ? 'Status on the sheet: ' + v.flow : '', v.notes || ''].filter(function (x) { return x; }).join(' | ') }, PO);
+            parts: (v.parts || []).join(', '), tier: v.tier, notes: [v.flow ? 'Status on the sheet: ' + v.flow : '', v.special ? 'Special case: ' + v.special : '', v.notes || ''].filter(function (x) { return x; }).join(' | ') }, PO);
         }
       } catch (e) {} show('Added to the ' + (PAGE === 'order' ? 'Order Sheet' : 'Repair Logger') + ' (row ' + r.row + ').'); f.reset(); if (PAGE === 'order') f.qty.value = 1; b.disabled = false; };
     var bad = function (err) { show(err && err.message ? err.message : String(err), true); b.disabled = false; };

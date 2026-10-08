@@ -20,6 +20,11 @@
         <%= t.closed_at ? 'closed after ' + t.age + ' day' + (t.age === 1 ? '' : 's') : (t.age === 0 ? 'opened today' : 'open ' + t.age + ' day' + (t.age === 1 ? '' : 's')) %></p>
 
     <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+    <% if (suggestion && t.parts) { %>
+        <div class="msg">Based on the parts listed (<%= t.parts %>), this looks like <strong><%= suggestion.label %></strong> ($<%= suggestion.fee %>): <%= suggestion.why.toLowerCase() %>.
+            <% if (suggestion.other.length) { %>Not sure how to rate <%= suggestion.other.join(', ') %>; counted as a basic part.<% } %>
+            <form action="/bench/ticket/tier" method="POST" style="display:inline-block;margin-left:8px"><input type="hidden" name="id" value="<%= t.id %>"><input type="hidden" name="tier" value="<%= suggestion.n %>"><button type="submit" class="btn-ghost" style="margin:0;padding:6px 12px;min-height:0">Use <%= suggestion.label.split(' - ')[0] %></button></form></div>
+    <% } %>
     <% if (history.length) { %>
         <div class="msg">This device has been in before: <%= history.length %> earlier ticket<%= history.length === 1 ? '' : 's' %>.
             <% history.forEach(h => { %><a href="/bench/ticket?id=<%= h.id %>">#<%= h.id %></a> (<%= h.status %>, <%= h.when %>) <% }) %></div>
@@ -64,7 +69,7 @@
                     <dt>Serial / asset ID</dt><dd><%= t.serial || '—' %></dd>
                     <dt>Chief complaint</dt><dd class="pre"><%= t.complaint || '—' %></dd>
                     <dt>Parts needed</dt><dd><%= t.parts || 'None listed' %></dd>
-                    <dt>Repair tier</dt><dd><%= t.tier || '—' %></dd>
+                    <dt>Repair tier</dt><dd><% if (tier.n) { %><strong><%= tier.label %></strong> <span class="badge ok">$<%= tier.fee %></span><% } else { %><%= tier.label || 'Not set yet' %><% } %></dd>
                     <dt>Assigned to</dt><dd><%= t.assigned_name || 'Nobody yet' %></dd>
                     <% if (t.sheet_row) { %><dt>Repair Logger row</dt><dd><%= t.sheet_row %></dd><% } %>
                 </dl>
@@ -83,10 +88,20 @@
                         <label>Serial / asset ID</label><input type="text" name="serial" value="<%= t.serial %>" maxlength="40">
                         <label>Chief complaint</label><textarea name="complaint" maxlength="600"><%= t.complaint %></textarea>
                         <label>Parts needed</label><input type="text" name="parts" value="<%= t.parts %>" maxlength="400">
-                        <label>Repair tier</label><input type="text" name="tier" value="<%= t.tier %>" maxlength="40">
+                        <label>Repair tier</label>
+                        <select name="tier"><option value="">Not set</option>
+                            <% [1,2,3,4].forEach(n => { %><option value="<%= n %>" <%= tier.n === n ? 'selected' : '' %>>Tier <%= n %> - <%= TIERS[n].name %> ($<%= TIERS[n].fee %>)</option><% }) %>
+                        </select>
                         <label>Priority</label><select name="priority"><% priorities.forEach(p => { %><option <%= t.priority === p ? 'selected' : '' %>><%= p %></option><% }) %></select>
                         <button type="submit">Save changes</button>
                     </form>
+                </details>
+                <details style="margin-top:12px"><summary>What do the repair tiers mean?</summary>
+                    <% [1,2,3,4].forEach(n => { %>
+                        <div style="margin:12px 0"><strong>Tier <%= n %> - <%= TIERS[n].name %></strong> <span class="badge ok">$<%= TIERS[n].fee %></span>
+                            <ul style="margin:4px 0 4px 18px;padding:0"><% TIERS[n].items.forEach(i => { %><li><%= i %></li><% }) %></ul>
+                            <% if (TIERS[n].note) { %><em class="dim" style="font-size:13px"><%= TIERS[n].note %></em><% } %></div>
+                    <% }) %>
                 </details>
                 <p class="hint" style="margin-top:12px">Changes here update the portal queue only. The Repair Logger sheet keeps the row as it was first logged.</p>
             </div>

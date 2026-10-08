@@ -40,6 +40,9 @@
                         <% people.forEach(p => { if (p.id !== me) { %><option value="<%= p.id %>" <%= f.assignee === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% } }) %></select></div>
                 <div><label for="fp">Priority</label>
                     <select id="fp" name="priority"><option value="">Any</option><% priorities.forEach(p => { %><option <%= f.priority === p ? 'selected' : '' %>><%= p %></option><% }) %></select></div>
+                <div><label for="ftr">Repair tier</label>
+                    <select id="ftr" name="tier"><option value="">Any</option><option value="none" <%= f.tier === 'none' ? 'selected' : '' %>>Not set</option>
+                        <% [1,2,3,4].forEach(n => { %><option value="<%= n %>" <%= f.tier === String(n) ? 'selected' : '' %>>Tier <%= n %> - <%= TIERS[n].name %></option><% }) %></select></div>
                 <div><label for="fm">Device model</label>
                     <select id="fm" name="model"><option value="">Any model</option><% models.forEach(m => { %><option <%= f.model === m ? 'selected' : '' %>><%= m %></option><% }) %></select></div>
                 <div><label for="ff">Opened on or after</label><input type="date" id="ff" name="from" value="<%= f.from %>"></div>
@@ -69,7 +72,7 @@
                 <tr class="rowlink" onclick="location.href='/bench/ticket?id=<%= t.id %>'">
                     <td><a href="/bench/ticket?id=<%= t.id %>"><%= t.id %></a></td>
                     <td><%= t.student || '—' %></td>
-                    <td><strong><%= t.model %></strong><% if (t.priority === 'High') { %> <span class="hi">&bull; High</span><% } %></td>
+                    <td><strong><%= t.model %></strong><% if (t.priority === 'High') { %> <span class="hi">&bull; High</span><% } %><% if (t.tierN) { %><div class="dim" style="font-size:12px">Tier <%= t.tierN %> &middot; <%= TIERS[t.tierN].name %></div><% } %></td>
                     <td><%= t.serial || '—' %></td>
                     <td class="cmp"><%= t.complaint ? (t.complaint.length > 90 ? t.complaint.slice(0, 90) + '…' : t.complaint) : '—' %></td>
                     <td><span class="badge <%= t.tone %>"><%= t.status %></span></td>
@@ -101,6 +104,8 @@
             <input type="text" id="ns" name="serial" maxlength="40" autocomplete="off">
             <label for="nc">Chief complaint</label>
             <textarea id="nc" name="complaint" maxlength="600" required></textarea>
+            <label for="nt">Repair tier</label>
+            <select id="nt" name="tier"><option value="">Decide later</option><% [1,2,3,4].forEach(n => { %><option value="<%= n %>">Tier <%= n %> - <%= TIERS[n].name %> ($<%= TIERS[n].fee %>)</option><% }) %></select>
             <label for="np">Priority</label>
             <select id="np" name="priority"><option>Normal</option><option>High</option></select>
             <button type="submit">Create ticket</button>
