@@ -83,6 +83,24 @@
             </div>
             <% } %>
 
+            <form class="panel" action="/admin/accounts/permissions" method="POST">
+                <h3>Permissions</h3>
+                <input type="hidden" name="id" value="<%= emp.id %>">
+                <p class="hint">Switch things off to take them away from this account, and back on to restore them. You can only turn off what the account already has. Switches that are grayed out cannot be changed here.</p>
+                <% let lastGroup = ''; permRows.forEach(x => { %>
+                    <% if (x.group !== lastGroup) { lastGroup = x.group; %><h4 class="permhead"><%= x.group %></h4><% } %>
+                    <div class="perm<%= x.on && !x.editable ? ' on' : '' %>">
+                        <span class="ptext"><strong><%= x.label %></strong><small><%= x.editable ? x.detail : x.why %></small></span>
+                        <% if (x.editable) { %>
+                            <label class="sw live"><input type="checkbox" name="allow" value="<%= x.key %>" <%= x.on ? 'checked' : '' %> aria-label="<%= x.label %>"><i></i><em></em></label>
+                        <% } else { %>
+                            <span class="sw" role="switch" aria-checked="<%= x.on ? 'true' : 'false' %>" aria-disabled="true" aria-label="<%= x.label %>: <%= x.on ? 'on' : 'off' %>"><i></i><em><%= x.on ? 'On' : 'Off' %></em></span>
+                        <% } %>
+                    </div>
+                <% }) %>
+                <% if (permRows.some(x => x.editable)) { %><button type="submit" style="margin-top:14px">Save permissions</button><% } %>
+            </form>
+
             <div class="panel">
                 <h3>Other actions</h3>
                 <p class="hint">Forgot their password? <a href="/admin/users/reset">Reset it here</a>. To delete an account, use <a href="/dashboard">Remove an account</a> on the dashboard.</p>

@@ -106,8 +106,31 @@ module.exports = function (app, getDb, wrap) {
             role, roleName: ROLE_NAMES[role], isSelf, isDistrict,
             memberships: memberships.map(a => ({ ...a, removable: unitSet.has(a.site_id + ':' + a.program_id) })),
             scopes: scopes.map(a => ({ ...a, removable: isDistrict })),
+            permRows: await require('./perms').rowsFor(db, emp, req.session),
             addOptions: (role === 2 || isSelf) ? [] : addOptions
         });
+    }));
+
+    // ---------- Permission switches (turn things off or back on) ----------
+    app.post('/admin/accounts/permissions', wrap(async (req, res) => {
+        if (needAdmin(req, res)) return;
+        const db = await database();
+        const perms = require('./perms');
+        const id = parseInt(req.body.id, 10);
+        if (!id || id === req.session.userID || !(await canManage(db, req.session, id))) return res.redirect('/admin/accounts');
+        const emp = await db.get('SELECT id, name, is_admin, is_district FROM employees WHERE id = ?', [id]);
+        if (!emp || emp.is_district) return res.redirect('/admin/accounts');
+        await perms.ensure(db);
+        const allow = [].concat(req.body.allow || []).map(String).filter(k => perms.KEYS.includes(k));
+        let changes;
+        await db.run('BEGIN');
+        try {
+            changes = await perms.apply(db, req.session, emp, allow);
+            if (changes.length) await audit(db, req, { id, name: emp.name }, 'PERMISSIONS', changes.join('; '));
+            await db.run('COMMIT');
+        } catch (err) { await db.run('ROLLBACK'); throw err; }
+        flash(req, changes.length ? 'Saved: ' + changes.join(', ') + '.' : 'Nothing was changed.');
+        res.redirect(back(id));
     }));
 
     // ---------- Save name / username / rate / role ----------

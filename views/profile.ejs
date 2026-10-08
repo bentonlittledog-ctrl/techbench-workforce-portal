@@ -32,7 +32,7 @@
             <ul class="perms">
                 <% g.items.forEach(x => { %>
                     <li class="perm<%= x.on ? ' on' : '' %>">
-                        <span class="ptext"><strong><%= x.label %></strong><small><%= x.detail %></small></span>
+                        <span class="ptext"><strong><%= x.label %></strong><small><%= x.note || x.detail %></small></span>
                         <span class="sw" role="switch" aria-checked="<%= x.on ? 'true' : 'false' %>" aria-disabled="true" aria-label="<%= x.label %>: <%= x.on ? 'on' : 'off' %>"><i></i><em><%= x.on ? 'On' : 'Off' %></em></span>
                     </li>
                 <% }) %>

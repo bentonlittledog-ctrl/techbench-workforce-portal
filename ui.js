@@ -82,7 +82,7 @@ function navHtml(nav, theme) {
 
     h += '<div class="grp">My time</div><ul>' +
         item('/dashboard', 'home', 'Dashboard', path === '/dashboard') +
-        (nav.admin ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
+        (nav.admin || nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
         item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') +
         item('/profile', 'users', 'My profile', path === '/profile') + '</ul>';
@@ -100,7 +100,7 @@ function navHtml(nav, theme) {
             item('/bench/dashboard', 'chart', 'Bench stats', starts('/bench/dashboard')) +
                 (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
                 item('/bench/repair', 'tool', 'Log a repair', starts('/bench/repair')) : '') +
-            (nav.admin ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +
+            (nav.admin && nav.benchManage !== false ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +
                 item('/bench/import', 'db', 'Import old tickets', starts('/bench/import')) +
                 item('/bench/setup', 'db', 'Sheet connection', starts('/bench/setup')) : '') + '</ul>';
     }

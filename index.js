@@ -45,15 +45,24 @@ app.use(wrap(async (req, res, next) => {
     next();
 }));
 
+// 2.24 Administrator on/off switches (blocks pages an account has been restricted from)
+app.use(require('./perms').middleware(() => db));
+
 // 2.25 Menu information available to every page
 app.use(wrap(async (req, res, next) => {
     let resources = false, bench = false, benchReady = false;
     if (req.session.userID) {
         try { resources = await require('./education').hasResources(db, req.session); } catch (e) { resources = false; }
         try { bench = await require('./bench').hasBench(db, req.session); benchReady = bench && require('./bench').ready(); } catch (e) { bench = false; }
+        const off = req.permDenied || new Set();
+        if (off.has('learn')) resources = false;
+        if (off.has('bench')) { bench = false; benchReady = false; }
+        if (off.has('bench_order')) benchReady = false;
     }
+    const offs = req.permDenied || new Set();
     res.locals.nav = {
         resources, bench, benchReady,
+        benchManage: !offs.has('bench_manage') && !offs.has('bench'), canRequest: !offs.has('requests'),
         loggedIn: !!req.session.userID,
         admin: req.session.admin === 1,
         district: req.session.district === 1,
