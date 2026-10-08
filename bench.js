@@ -12,6 +12,11 @@ const FALLBACK_PARTS = ['LCD Screen (Display)', 'LCD Bezel', 'LCD (Display) Cabl
 const TIERS = ['Tier 1', 'Tier 2', 'Tier 3'];
 const FLOWS = ['Diagnostic', 'Awaiting Parts', 'Awaiting Repair', 'Repaired'];
 
+// Where the Google-hosted forms live (Render setting SHEET_FORM_URL). Only google.com script addresses are accepted.
+const formUrl = page => {
+    const u = String(process.env.SHEET_FORM_URL || '').trim();
+    return /^https:\/\/script\.google\.com\/[^\s"'<>]+$/.test(u) ? u.split('?')[0] + '?page=' + page : '';
+};
 const first = (...arrs) => arrs.find(a => Array.isArray(a) && a.length) || [];
 const one = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 
@@ -107,6 +112,7 @@ function mount(app, getDb, wrap) {
     // ---------- Order a part ----------
     app.get('/bench/order', wrap(async (req, res) => {
         const db = await gate(req, res); if (!db) return;
+        if (!sheet.configured() && formUrl('order')) return res.redirect(formUrl('order'));
         const l = await lists(db, req.query.refresh === '1');
         res.render('bench_order', { flash: takeFlash(req), configured: sheet.configured(), l, recent: await recentOf(db, 'order'), isAdmin: req.session.admin === 1 });
     }));
@@ -131,6 +137,7 @@ function mount(app, getDb, wrap) {
     // ---------- Log a repair ----------
     app.get('/bench/repair', wrap(async (req, res) => {
         const db = await gate(req, res); if (!db) return;
+        if (!sheet.configured() && formUrl('repair')) return res.redirect(formUrl('repair'));
         const l = await lists(db, req.query.refresh === '1');
         res.render('bench_repair', { flash: takeFlash(req), configured: sheet.configured(), l, recent: await recentOf(db, 'repair'), isAdmin: req.session.admin === 1 });
     }));
@@ -162,7 +169,7 @@ function mount(app, getDb, wrap) {
         let code = '';
         try { code = fs.readFileSync(path.join(__dirname, 'appsscript', 'Code.gs'), 'utf8'); } catch (e) { code = '// Code.gs was not found next to the app.'; }
         res.render('bench_setup', {
-            flash: takeFlash(req), urlSet: !!process.env.SHEET_WEBAPP_URL, tokenSet: !!process.env.SHEET_TOKEN, configured: sheet.configured(), code
+            flash: takeFlash(req), formSet: !!formUrl('order'), urlSet: !!process.env.SHEET_WEBAPP_URL, tokenSet: !!process.env.SHEET_TOKEN, configured: sheet.configured(), code
         });
     }));
 
@@ -181,3 +188,4 @@ function mount(app, getDb, wrap) {
 
 module.exports = mount;
 module.exports.hasBench = hasBench;
+module.exports.ready = () => sheet.configured() || !!formUrl('order');

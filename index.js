@@ -47,13 +47,13 @@ app.use(wrap(async (req, res, next) => {
 
 // 2.25 Menu information available to every page
 app.use(wrap(async (req, res, next) => {
-    let resources = false, bench = false;
+    let resources = false, bench = false, benchReady = false;
     if (req.session.userID) {
         try { resources = await require('./education').hasResources(db, req.session); } catch (e) { resources = false; }
-        try { bench = await require('./bench').hasBench(db, req.session); } catch (e) { bench = false; }
+        try { bench = await require('./bench').hasBench(db, req.session); benchReady = bench && require('./bench').ready(); } catch (e) { bench = false; }
     }
     res.locals.nav = {
-        resources, bench,
+        resources, bench, benchReady,
         loggedIn: !!req.session.userID,
         admin: req.session.admin === 1,
         district: req.session.district === 1,

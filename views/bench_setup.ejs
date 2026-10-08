@@ -9,15 +9,14 @@
 <body>
     <%- include('partials/nav') %>
     <h1>Sheet connection</h1>
-    <p class="sub">Lets the portal add orders and repairs to the master administrative sheet. Set this up once.</p>
+    <p class="sub">Order and repair forms that write into the master administrative sheet. Set this up once.</p>
 
     <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
 
     <div class="panel">
         <h3>Status</h3>
-        <p>Web app address: <span class="badge <%= urlSet ? 'ok' : 'warn' %>"><%= urlSet ? 'SET' : 'MISSING' %></span>
-           &nbsp; Password: <span class="badge <%= tokenSet ? 'ok' : 'warn' %>"><%= tokenSet ? 'SET' : 'MISSING' %></span></p>
-        <form action="/bench/setup/test" method="POST"><button type="submit" <%= configured ? '' : 'disabled' %>>Test the connection</button></form>
+        <p>Form address (<code>SHEET_FORM_URL</code>): <span class="badge <%= formSet ? 'ok' : 'warn' %>"><%= formSet ? 'SET' : 'MISSING' %></span></p>
+        <p class="hint">When this is set, the &ldquo;Order a part&rdquo; and &ldquo;Log a repair&rdquo; menu items open the forms hosted by Google.</p>
     </div>
 
     <div class="panel">
@@ -25,13 +24,18 @@
         <ol class="steps">
             <li>Open the master administrative sheet. Choose <strong>Extensions &rarr; Apps Script</strong>.</li>
             <li>Delete everything in the editor, paste the code below, and click Save.</li>
-            <li>Click the gear (<strong>Project Settings</strong>) &rarr; <strong>Script properties</strong> &rarr; Add: name <code>PORTAL_TOKEN</code>, value a long made-up password. Save.</li>
-            <li><strong>Deploy &rarr; New deployment</strong> &rarr; type <strong>Web app</strong>. Execute as <strong>Me</strong>, who has access <strong>Anyone</strong>. Deploy, approve the permission prompts, and copy the Web app URL.</li>
-            <li>In Render, open the service &rarr; <strong>Environment</strong> and add <code>SHEET_WEBAPP_URL</code> (the URL) and <code>SHEET_TOKEN</code> (the same password). Render restarts the app.</li>
-            <li>Come back here and press <strong>Test the connection</strong>.</li>
+            <li><strong>Deploy &rarr; New deployment</strong> &rarr; type <strong>Web app</strong>. Execute as <strong>Me</strong>, who has access <strong>Anyone within sd5.k12.mt.us</strong>. Deploy, approve the permission prompts, and copy the Web app URL (ends in <code>/exec</code>).</li>
+            <li>In Render, open the service &rarr; <strong>Environment</strong> and add <code>SHEET_FORM_URL</code> with that URL. Render restarts the app.</li>
+            <li>Check the new menu items under Tech Bench. Each submission also lands on a <strong>Portal Log</strong> tab in the sheet with the person&rsquo;s email.</li>
         </ol>
-        <p class="hint">If your school&rsquo;s Google settings do not allow &ldquo;Anyone&rdquo; on web apps, ask IT to allow it for this one script. The password is what keeps it private, so make it long.</p>
+        <p class="hint">People must be signed in to a district Google account to use the forms. If you change the code later, use Deploy &rarr; Manage deployments &rarr; edit &rarr; New version.</p>
     </div>
+
+    <details class="panel">
+        <summary>Advanced: send rows from the portal itself (needs &ldquo;Anyone&rdquo; access)</summary>
+        <p class="hint">Only works if your district allows web apps open to Anyone. Add a script property <code>PORTAL_TOKEN</code>, deploy with access Anyone, then set <code>SHEET_WEBAPP_URL</code> and <code>SHEET_TOKEN</code> in Render. Status: address <span class="badge <%= urlSet ? 'ok' : 'warn' %>"><%= urlSet ? 'SET' : 'MISSING' %></span> password <span class="badge <%= tokenSet ? 'ok' : 'warn' %>"><%= tokenSet ? 'SET' : 'MISSING' %></span></p>
+        <form action="/bench/setup/test" method="POST"><button type="submit" <%= configured ? '' : 'disabled' %>>Test the connection</button></form>
+    </details>
 
     <div class="panel">
         <h3>Code to paste</h3>
