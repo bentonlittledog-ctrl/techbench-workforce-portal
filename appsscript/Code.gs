@@ -55,8 +55,11 @@ function doPost(e) {
 // The forms. Opened with ?page=order or ?page=repair
 function doGet(e) {
   var page = (e && e.parameter && e.parameter.page === 'repair') ? 'repair' : 'order';
-  return HtmlService.createHtmlOutput(pageHtml_(page))
+  var embed = !!(e && e.parameter && e.parameter.embed === '1');
+  var accent = (e && e.parameter && /^#?[0-9a-fA-F]{6}$/.test(e.parameter.accent || '')) ? '#' + e.parameter.accent.replace('#', '') : '#12843f';
+  return HtmlService.createHtmlOutput(pageHtml_(page, embed, accent))
     .setTitle(page === 'repair' ? 'Log a repair' : 'Order a part')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -120,10 +123,13 @@ function submitRepair(v) {
   return { ok: true, row: r.row };
 }
 
-function pageHtml_(page) {
+function pageHtml_(page, embed, accent) {
   var base = '';
   try { base = ScriptApp.getService().getUrl() || ''; } catch (e) {}
-  return PAGE_HTML.replace('__PAGE__', page).split('__BASE__').join(base);
+  return PAGE_HTML.replace('__PAGE__', page).split('__BASE__').join(base)
+    .split('#12843f').join(accent || '#12843f')
+    .replace('<body', embed ? '<body class="embed"' : '<body')
+    .replace('</style>', '.embed .tabs{display:none}.embed body,body.embed{background:transparent}</style>');
 }
 
 var PAGE_HTML = `<!DOCTYPE html><html><head><base target="_top"><meta charset="utf-8">

@@ -17,6 +17,11 @@ const formUrl = page => {
     const u = String(process.env.SHEET_FORM_URL || '').trim();
     return /^https:\/\/script\.google\.com\/[^\s"'<>]+$/.test(u) ? u.split('?')[0] + '?page=' + page : '';
 };
+const accentOf = res => { const a = res.locals?.theme?.light?.accent; return /^#[0-9a-f]{6}$/i.test(a || '') ? a.slice(1) : ''; };
+const embedPage = (res, page) => res.render('bench_embed', {
+    page, title: page === 'order' ? 'Order a part' : 'Log a repair',
+    openUrl: formUrl(page), src: formUrl(page) + '&embed=1' + (accentOf(res) ? '&accent=' + accentOf(res) : '')
+});
 const first = (...arrs) => arrs.find(a => Array.isArray(a) && a.length) || [];
 const one = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 
@@ -112,7 +117,7 @@ function mount(app, getDb, wrap) {
     // ---------- Order a part ----------
     app.get('/bench/order', wrap(async (req, res) => {
         const db = await gate(req, res); if (!db) return;
-        if (!sheet.configured() && formUrl('order')) return res.redirect(formUrl('order'));
+        if (!sheet.configured() && formUrl('order')) return embedPage(res, 'order');
         const l = await lists(db, req.query.refresh === '1');
         res.render('bench_order', { flash: takeFlash(req), configured: sheet.configured(), l, recent: await recentOf(db, 'order'), isAdmin: req.session.admin === 1 });
     }));
@@ -137,7 +142,7 @@ function mount(app, getDb, wrap) {
     // ---------- Log a repair ----------
     app.get('/bench/repair', wrap(async (req, res) => {
         const db = await gate(req, res); if (!db) return;
-        if (!sheet.configured() && formUrl('repair')) return res.redirect(formUrl('repair'));
+        if (!sheet.configured() && formUrl('repair')) return embedPage(res, 'repair');
         const l = await lists(db, req.query.refresh === '1');
         res.render('bench_repair', { flash: takeFlash(req), configured: sheet.configured(), l, recent: await recentOf(db, 'repair'), isAdmin: req.session.admin === 1 });
     }));
