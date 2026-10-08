@@ -7,7 +7,7 @@
     <%- headTags %>
     <style>
         .tabbar{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}.tabbar .btn{margin-top:0}
-        .embedframe{width:100%;height:82vh;min-height:620px;border:1px solid #d9dfe9;border-radius:10px;background:#fff}
+        .embedframe{width:100%;height:82vh;min-height:620px;border:0;border-radius:10px;background:transparent}
     </style>
 </head>
 <body>
@@ -19,7 +19,23 @@
         <a class="btn <%= page === 'repair' ? 'btn-primary' : 'btn-ghost' %>" href="/bench/repair">Log a repair</a>
         <a class="btn btn-ghost" href="<%= openUrl %>" target="_blank" rel="noopener">Open in a new tab</a>
     </div>
-    <iframe class="embedframe" src="<%= src %>" title="<%= title %>" referrerpolicy="no-referrer"></iframe>
+    <iframe id="gf" class="embedframe" src="about:blank" data-src="<%= src %>" title="<%= title %>" referrerpolicy="no-referrer"></iframe>
     <p class="sub">Form blank or asking you to sign in? Use <strong>Open in a new tab</strong> above.</p>
+<script>
+(function () {
+    function hex(v, fb) {
+        var t = document.createElement('span'); t.style.color = v || fb; document.body.appendChild(t);
+        var m = getComputedStyle(t).color.match(/\d+(\.\d+)?/g) || [0, 0, 0]; t.remove();
+        return m.slice(0, 3).map(function (n) { return ('0' + Math.round(+n).toString(16)).slice(-2); }).join('');
+    }
+    function cv(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+    var f = document.getElementById('gf');
+    var bg = getComputedStyle(document.body).backgroundColor;
+    var q = '&bg=' + hex(bg, '#ffffff') + '&surf=' + hex(cv('--surface'), bg) + '&fg=' + hex(cv('--text'), '#111111') +
+            '&muted=' + hex(cv('--muted'), '#667085') + '&line=' + hex(cv('--line'), '#d9dfe9');
+    f.style.background = bg;
+    f.src = f.getAttribute('data-src') + q;
+})();
+</script>
 </body>
 </html>
