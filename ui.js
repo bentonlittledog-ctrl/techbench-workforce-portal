@@ -100,6 +100,7 @@ function navHtml(nav, theme) {
                 (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
                 item('/bench/repair', 'tool', 'Log a repair', starts('/bench/repair')) : '') +
             (nav.admin ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +
+                item('/bench/import', 'db', 'Import old tickets', starts('/bench/import')) +
                 item('/bench/setup', 'db', 'Sheet connection', starts('/bench/setup')) : '') + '</ul>';
     }
 

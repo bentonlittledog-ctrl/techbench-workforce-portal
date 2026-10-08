@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import old tickets - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Import old tickets</h1>
+    <p class="sub">Brings the rows from the Repair Logger sheet into the repair queue. It is safe to run again: rows that are already in the portal are skipped.</p>
+
+    <div class="panel">
+        <h3>1. Download the sheet</h3>
+        <p>In the Google Sheet, open the <strong>Repair Logger</strong> tab, then <strong>File &rarr; Download &rarr; Comma-separated values (.csv)</strong>.</p>
+        <p class="hint">The old sheet has no student names, so imported tickets show no student. Every other column we can read (model, serial, parts, tier, status, notes, and a date if there is one) comes across. The portal has <%= existing %> ticket<%= existing === 1 ? '' : 's' %> now.</p>
+        <label for="file">2. Choose the file</label>
+        <input type="file" id="file" accept=".csv,text/csv">
+        <div id="msg" class="msg" role="status" hidden></div>
+    </div>
+
+    <div class="panel" id="step3" hidden>
+        <h3>3. Check the statuses</h3>
+        <p id="sum"></p>
+        <p class="hint">The sheet's "Repair Flow" wording is matched to the portal's statuses. Fix any that look wrong. Old repairs that are long finished should be <strong>Returned to Student</strong> so they do not fill the active list.</p>
+        <table class="tbl"><thead><tr><th>Sheet says</th><th>Rows</th><th>Portal status</th></tr></thead><tbody id="flows"></tbody></table>
+        <label for="fb">Anything the sheet leaves blank or I cannot match</label>
+        <select id="fb"><% statuses.forEach(s => { %><option <%= s === 'Returned to Student' ? 'selected' : '' %>><%= s %></option><% }) %></select>
+        <label for="site">School for these tickets</label>
+        <select id="site"><option value="">Not recorded</option><% sites.forEach(s => { %><option><%= s %></option><% }) %></select>
+        <button type="button" id="go">Import tickets</button>
+    </div>
+
+    <script>
+    (function () {
+        var STAT = <%- JSON.stringify(statuses) %>, csv = '', mapSel = [];
+        var $ = function (id) { return document.getElementById(id); };
+        function say(t, bad) { var m = $('msg'); m.hidden = !t; m.textContent = t || ''; m.className = 'msg ' + (bad ? 'bad' : 'ok'); }
+        function post(body) {
+            return fetch('/bench/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
+                .then(function (r) { return r.json(); });
+        }
+        $('file').addEventListener('change', function () {
+            var f = this.files[0]; if (!f) return;
+            if (f.size > 5 * 1024 * 1024) { say('That file is over 5 MB. Is it the right tab?', true); return; }
+            var rd = new FileReader();
+            rd.onload = function () {
+                csv = String(rd.result); say('Reading...');
+                post({ csv: csv }).then(function (d) {
+                    if (!d.ok) { $('step3').hidden = true; say(d.error || 'Could not read that file.', true); return; }
+                    say('');
+                    $('sum').textContent = d.total + ' rows found. ' + d.fresh + ' new, ' + d.skipped + ' already in the portal.' + (d.hasDate ? ' Dates from the sheet will be used.' : ' The sheet has no date column, so tickets get today\'s date.');
+                    var tb = $('flows'); tb.innerHTML = ''; mapSel = [];
+                    d.flows.forEach(function (x) {
+                        var tr = document.createElement('tr'), a = document.createElement('td'), b = document.createElement('td'), c = document.createElement('td'), sel = document.createElement('select');
+                        a.textContent = x.flow || '(blank)'; b.textContent = x.n;
+                        var o0 = document.createElement('option'); o0.value = ''; o0.textContent = x.guess ? 'Use: ' + x.guess : 'Use the setting below'; sel.appendChild(o0);
+                        STAT.forEach(function (s) { var o = document.createElement('option'); o.textContent = s; sel.appendChild(o); });
+                        c.appendChild(sel); tr.appendChild(a); tr.appendChild(b); tr.appendChild(c); tb.appendChild(tr); mapSel.push([x.flow, sel]);
+                    });
+                    $('go').disabled = d.fresh === 0; $('step3').hidden = false;
+                    if (d.fresh === 0) say('Nothing new to import.');
+                }).catch(function () { say('Could not reach the portal. Try again.', true); });
+            };
+            rd.readAsText(f);
+        });
+        $('go').addEventListener('click', function () {
+            var map = {}; mapSel.forEach(function (p) { if (p[1].value) map[p[0]] = p[1].value; });
+            this.disabled = true; say('Importing...');
+            post({ csv: csv, go: true, map: map, fallback: $('fb').value, site: $('site').value }).then(function (d) {
+                if (!d.ok) { $('go').disabled = false; say(d.error || 'Import failed.', true); return; }
+                $('step3').hidden = true; say('Imported ' + d.made + ' ticket' + (d.made === 1 ? '' : 's') + '. ' + d.skipped + ' skipped.');
+                var a = document.createElement('a'); a.href = '/bench/queue?view=all'; a.textContent = ' Open the queue'; $('msg').appendChild(a);
+            }).catch(function () { $('go').disabled = false; say('Could not reach the portal. Nothing was imported; try again.', true); });
+        });
+    })();
+    </script>
+</body>
+</html>
