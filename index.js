@@ -405,6 +405,7 @@ require('./ticketphotos')(app, () => db, wrap, express);
 require('./notify')(app, () => db, wrap);
 require('./benchstats')(app, () => db, wrap);
 require('./ticketimport')(app, () => db, wrap, express);
+require('./profile')(app, () => db, wrap);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)

@@ -84,7 +84,8 @@ function navHtml(nav, theme) {
         item('/dashboard', 'home', 'Dashboard', path === '/dashboard') +
         (nav.admin ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
-        item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') + '</ul>';
+        item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') +
+        item('/profile', 'users', 'My profile', path === '/profile') + '</ul>';
 
     if (nav.resources) {
         h += '<div class="grp">Resources</div><ul>' +

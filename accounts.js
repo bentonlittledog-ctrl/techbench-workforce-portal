@@ -84,7 +84,8 @@ module.exports = function (app, getDb, wrap) {
         const db = await database();
         const id = parseInt(req.query.id, 10);
         if (!(await openable(db, req, id))) return res.redirect('/admin/accounts');
-        const emp = await db.get('SELECT id, name, username, hourly_rate, is_admin, is_district FROM employees WHERE id = ?', [id]);
+        await require('./profile').ensure(db);
+        const emp = await db.get('SELECT id, name, username, hourly_rate, is_admin, is_district, student_id, periods FROM employees WHERE id = ?', [id]);
         if (!emp) return res.redirect('/admin/accounts');
         const role = roleOf(emp);
         const isSelf = id === req.session.userID;
@@ -101,7 +102,7 @@ module.exports = function (app, getDb, wrap) {
         }
         res.render('admin_account_edit', {
             flash: takeFlash(req),
-            emp: { id: emp.id, name: emp.name, username: emp.username, rate: Number(emp.hourly_rate || 0).toFixed(2) },
+            emp: { id: emp.id, name: emp.name, username: emp.username, studentId: emp.student_id || '', periods: emp.periods || '', rate: Number(emp.hourly_rate || 0).toFixed(2) },
             role, roleName: ROLE_NAMES[role], isSelf, isDistrict,
             memberships: memberships.map(a => ({ ...a, removable: unitSet.has(a.site_id + ':' + a.program_id) })),
             scopes: scopes.map(a => ({ ...a, removable: isDistrict })),
@@ -115,7 +116,8 @@ module.exports = function (app, getDb, wrap) {
         const db = await database();
         const id = parseInt(req.body.id, 10);
         if (!(await openable(db, req, id))) return res.redirect('/admin/accounts');
-        const emp = await db.get('SELECT id, name, username, hourly_rate, is_admin, is_district FROM employees WHERE id = ?', [id]);
+        await require('./profile').ensure(db);
+        const emp = await db.get('SELECT id, name, username, hourly_rate, is_admin, is_district, student_id, periods FROM employees WHERE id = ?', [id]);
         if (!emp) return res.redirect('/admin/accounts');
         const isSelf = id === req.session.userID;
         const isDistrict = req.session.district === 1;
@@ -135,6 +137,10 @@ module.exports = function (app, getDb, wrap) {
             rate = Math.round(r * 100) / 100;
         }
 
+        const prof = require('./profile');
+        const studentId = req.body.student_id !== undefined ? prof.cleanId(req.body.student_id) : (emp.student_id || '');
+        const periods = req.body.periods !== undefined ? prof.cleanPeriods(req.body.periods) : (emp.periods || '');
+
         let newRole = oldRole;
         if (isDistrict && !isSelf && req.body.role !== undefined) {
             newRole = Math.min(Math.max(parseInt(req.body.role, 10) || 0, 0), 2);
@@ -148,14 +154,16 @@ module.exports = function (app, getDb, wrap) {
         if (name !== emp.name) changes.push('name "' + emp.name + '" to "' + name + '"');
         if (username !== emp.username) changes.push('username "' + emp.username + '" to "' + username + '"');
         if (rate !== Number(emp.hourly_rate || 0)) changes.push('rate $' + Number(emp.hourly_rate || 0).toFixed(2) + ' to $' + rate.toFixed(2));
+        if (studentId !== (emp.student_id || '')) changes.push('student ID ' + (emp.student_id ? '"' + emp.student_id + '" ' : '') + 'to "' + studentId + '"');
+        if (periods !== (emp.periods || '')) changes.push('periods "' + (emp.periods || '') + '" to "' + periods + '"');
         if (newRole !== oldRole) changes.push('role ' + ROLE_NAMES[oldRole] + ' to ' + ROLE_NAMES[newRole]);
         if (!changes.length) { flash(req, 'Nothing was changed.'); return res.redirect(back(id)); }
 
         let note = '';
         await db.run('BEGIN');
         try {
-            await db.run('UPDATE employees SET name = ?, username = ?, hourly_rate = ?, is_admin = ?, is_district = ? WHERE id = ?',
-                [name, username, rate, newRole >= 1 ? 1 : 0, newRole === 2 ? 1 : 0, id]);
+            await db.run('UPDATE employees SET name = ?, username = ?, hourly_rate = ?, is_admin = ?, is_district = ?, student_id = ?, periods = ? WHERE id = ?',
+                [name, username, rate, newRole >= 1 ? 1 : 0, newRole === 2 ? 1 : 0, studentId, periods, id]);
 
             // Keep the assignment rules consistent: only employees have site/program memberships; managers have scopes.
             if (newRole !== oldRole) {

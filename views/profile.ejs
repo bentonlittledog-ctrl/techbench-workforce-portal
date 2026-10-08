@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My profile - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>My profile</h1>
+    <p class="sub">Your details and what your account is allowed to do. This page is view only. Ask your manager if something needs to change.</p>
+
+    <div class="panel">
+        <h3>About you</h3>
+        <dl class="kv">
+            <dt>First name</dt><dd><%= me.first %></dd>
+            <dt>Full name</dt><dd><%= me.name %></dd>
+            <dt>Username</dt><dd><%= me.username %></dd>
+            <dt>Student ID</dt><dd><%= me.studentId || 'Not set yet' %></dd>
+            <dt>Assigned periods</dt><dd><%= me.periods || 'Not set yet' %></dd>
+            <dt>Account type</dt><dd><%= role %></dd>
+            <dt>Where you work</dt><dd><% if (places.length) { %><%= places.map(p => p.site + ' - ' + p.program).join('; ') %><% } else if (manages.length) { %>Manages: <%= manages.map(p => p.site + ' - ' + p.program).join('; ') %><% } else { %>Not assigned yet<% } %></dd>
+        </dl>
+    </div>
+
+    <div class="panel">
+        <h3>Your permissions <span class="badge"><%= onCount %> of <%= total %> on</span></h3>
+        <p class="hint">A switch that is on means you can do it. You cannot change these here.</p>
+        <% groups.forEach(g => { %>
+            <h4 class="permhead"><%= g.name %></h4>
+            <ul class="perms">
+                <% g.items.forEach(x => { %>
+                    <li class="perm<%= x.on ? ' on' : '' %>">
+                        <span class="ptext"><strong><%= x.label %></strong><small><%= x.detail %></small></span>
+                        <span class="sw" role="switch" aria-checked="<%= x.on ? 'true' : 'false' %>" aria-disabled="true" aria-label="<%= x.label %>: <%= x.on ? 'on' : 'off' %>"><i></i><em><%= x.on ? 'On' : 'Off' %></em></span>
+                    </li>
+                <% }) %>
+            </ul>
+        <% }) %>
+    </div>
+</body>
+</html>

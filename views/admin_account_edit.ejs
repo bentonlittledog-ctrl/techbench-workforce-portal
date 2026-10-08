@@ -22,6 +22,12 @@
             <label for="username">Username</label>
             <input type="text" id="username" name="username" value="<%= emp.username %>" maxlength="40" autocapitalize="none" required>
 
+            <label for="student_id">Student ID</label>
+            <input type="text" id="student_id" name="student_id" value="<%= emp.studentId %>" maxlength="20" autocomplete="off" placeholder="optional">
+            <label for="periods">Assigned periods</label>
+            <input type="text" id="periods" name="periods" value="<%= emp.periods %>" maxlength="60" autocomplete="off" placeholder="e.g. 2, 4, 6">
+            <p class="hint" style="margin-top:6px;">Shown on this person's My profile page. They cannot change it themselves.</p>
+
             <% if (!isSelf) { %>
                 <label for="hourly_rate">Hourly rate ($/hr)</label>
                 <input type="number" id="hourly_rate" name="hourly_rate" step="0.01" min="0" max="500" value="<%= emp.rate %>" required>
