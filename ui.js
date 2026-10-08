@@ -96,7 +96,7 @@ function navHtml(nav, theme) {
         h += '<div class="grp">Tech Bench</div><ul>' +
             item('/bench/queue', 'tool', 'Repair queue', starts('/bench/queue') || starts('/bench/ticket')) +
             item('/bench/workload', 'users', 'Workload', starts('/bench/workload')) +
-            item('/bench/dashboard', 'chart', 'Dashboard', starts('/bench/dashboard')) +
+            item('/bench/dashboard', 'chart', 'Bench stats', starts('/bench/dashboard')) +
                 (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
                 item('/bench/repair', 'tool', 'Log a repair', starts('/bench/repair')) : '') +
             (nav.admin ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +

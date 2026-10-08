@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bench dashboard - Timecard Portal</title>
+    <title>Bench stats - Timecard Portal</title>
     <%- headTags %>
 </head>
 <body>
     <%- include('partials/nav') %>
-    <h1>Bench dashboard</h1>
+    <h1>Bench stats</h1>
     <p class="sub">Where the repair queue stands right now, and how the bench has been doing. Print this page to share it.</p>
     <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
 
