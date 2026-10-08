@@ -58,6 +58,8 @@ function doGet(e) {
   var embed = !!(e && e.parameter && e.parameter.embed === '1');
   var accent = (e && e.parameter && /^#?[0-9a-fA-F]{6}$/.test(e.parameter.accent || '')) ? '#' + e.parameter.accent.replace('#', '') : '#12843f';
   var c = {};
+  var po = e && e.parameter && e.parameter.po;
+  if (po && /^https:\/\/[A-Za-z0-9.-]+(:\d+)?$/.test(po)) c.po = po;
   ['bg', 'surf', 'fg', 'muted', 'line'].forEach(function (k) {
     var v = e && e.parameter && e.parameter[k];
     if (v && /^[0-9a-fA-F]{6}$/.test(v)) c[k] = '#' + v;
@@ -121,7 +123,11 @@ function submitRepair(v) {
   picked.forEach(function (p) { if (L.repairParts.length && L.repairParts.indexOf(p) < 0) throw new Error('"' + p + '" is not in the sheet\'s part list.'); });
   var tier = oneOf_(L.tiers, clean_(v.tier, 40), 'the repair tier');
   var flow = oneOf_(L.flows, clean_(v.flow, 40), 'the repair status');
-  var notes = clean_(v.notes, 600);
+  if (!clean_(v.sfirst, 40) || !clean_(v.slast, 40) || !clean_(v.sid, 20) || !clean_(v.sgrade, 10)) throw new Error('Enter the student\'s first and last name, student ID number and grade.');
+  var complaint = clean_(v.complaint, 400);
+  if (!complaint) throw new Error('Describe the chief complaint (what is wrong with the device).');
+  var extra = clean_(v.notes, 400);
+  var notes = complaint + (extra ? ' | Notes: ' + extra : '');
   var vals = { model: model, serial: serial, parts: picked.join(', '), tier: tier, flow: flow, notes: notes };
   var r = withLock_(function () { return addRow_(TABS.repair, vals); });
   log_('repair', model + ' | ' + serial + ' | ' + (vals.parts || 'no parts') + ' | ' + tier + ' | ' + flow + (notes ? ' | ' + notes : ''), r.row);
@@ -139,7 +145,7 @@ function pageHtml_(page, embed, accent, c) {
   if (embed && c.line) css += 'form,select,input[type=text],input[type=number],textarea{border-color:' + c.line + '}';
   var base = '';
   try { base = ScriptApp.getService().getUrl() || ''; } catch (e) {}
-  return PAGE_HTML.replace('__PAGE__', page).split('__BASE__').join(base)
+  return PAGE_HTML.replace('__PAGE__', page).replace('__PO__', embed && c.po ? c.po : '').split('__BASE__').join(base)
     .split('#12843f').join(accent || '#12843f')
     .replace('<body', embed ? '<body class="embed"' : '<body')
     .replace('</style>', css + '</style>');
@@ -161,7 +167,7 @@ button{margin-top:18px;padding:11px 18px;border:0;border-radius:6px;background:#
 <div class="tabs"><a id="t-order" href="__BASE__?page=order" target="_top">Order a part</a><a id="t-repair" href="__BASE__?page=repair" target="_top">Log a repair</a></div>
 <h1 id="h"></h1><p class="sub" id="sub">Loading...</p><div id="msg"></div><form id="f" style="display:none"></form>
 <script>
-var PAGE = '__PAGE__', D = null;
+var PAGE = '__PAGE__', PO = '__PO__', D = null;
 function fail(t) { var m = document.getElementById('msg'); if (m) m.innerHTML = '<div class="msg bad">' + String(t).replace(/</g, '&lt;') + '</div>'; var s = document.getElementById('sub'); if (s) s.textContent = ''; }
 window.onerror = function (msg, src, line) { fail('Page error: ' + msg + ' (line ' + line + ')'); };
 setTimeout(function () { if (!D) fail('Still loading after 20 seconds. Reload the page; if it keeps happening, tell the person who manages the portal.'); }, 20000);
@@ -188,12 +194,19 @@ function build() {
   } else {
     el('h').textContent = 'Log a repair';
     el('sub').textContent = 'Adds a line to the Repair Logger. Signed in as ' + D.email + '.';
+    h += '<div class="two"><div><label>Student first name</label><input type="text" name="sfirst" maxlength="40" required autocomplete="off"></div>';
+    h += '<div><label>Student last name</label><input type="text" name="slast" maxlength="40" required autocomplete="off"></div></div>';
+    h += '<div class="two"><div><label>Student ID number</label><input type="text" name="sid" maxlength="20" required autocomplete="off" inputmode="numeric"></div>';
+    h += '<div><label>Grade</label><select name="sgrade" required><option value="">Choose...</option>';
+    ['6', '7', '8', '9', '10', '11', '12', 'Other'].forEach(function (g) { h += '<option>' + g + '</option>'; });
+    h += '</select></div></div>';
     h += sel('model', L.repairModels, 'Device model');
     h += '<label>Serial number / asset ID (leave blank if unknown)</label><input type="text" name="serial" maxlength="40" autocomplete="off">';
+    h += '<label>Chief complaint (what is wrong with it?)</label><textarea name="complaint" maxlength="400" required></textarea>';
     h += '<label>Parts needed (tick everything that applies, or none)</label><div class="checks">';
     L.repairParts.forEach(function (p) { h += '<label><input type="checkbox" name="parts" value="' + esc(p) + '"> ' + esc(p) + '</label>'; });
     h += '</div><div class="two"><div>' + sel('tier', L.tiers, 'Repair tier') + '</div><div>' + sel('flow', L.flows, 'Status') + '</div></div>';
-    h += '<label>Repair notes</label><textarea name="notes" maxlength="600"></textarea><button type="submit">Add to Repair Logger</button>';
+    h += '<label>Extra repair notes (optional)</label><textarea name="notes" maxlength="400"></textarea><button type="submit">Add to Repair Logger</button>';
   }
   f.innerHTML = h; f.style.display = 'block';
   f.onsubmit = function (ev) {
@@ -206,7 +219,14 @@ function build() {
       if (e.type === 'checkbox') { if (e.checked) { (v[e.name] = v[e.name] || []).push(e.value); } }
       else v[e.name] = e.value;
     }
-    var ok = function (r) { show('Added to the ' + (PAGE === 'order' ? 'Order Sheet' : 'Repair Logger') + ' (row ' + r.row + ').'); f.reset(); if (PAGE === 'order') f.qty.value = 1; b.disabled = false; };
+    v.ref = 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    var ok = function (r) {
+      try {
+        if (PAGE === 'repair' && PO && window.top !== window) {
+          window.top.postMessage({ type: 'tb-repair-logged', ref: v.ref, row: r.row, student_first: v.sfirst, student_last: v.slast, student_id: v.sid, student_grade: v.sgrade, model: v.model, serial: v.serial, complaint: v.complaint,
+            parts: (v.parts || []).join(', '), tier: v.tier, notes: [v.flow ? 'Status on the sheet: ' + v.flow : '', v.notes || ''].filter(function (x) { return x; }).join(' | ') }, PO);
+        }
+      } catch (e) {} show('Added to the ' + (PAGE === 'order' ? 'Order Sheet' : 'Repair Logger') + ' (row ' + r.row + ').'); f.reset(); if (PAGE === 'order') f.qty.value = 1; b.disabled = false; };
     var bad = function (err) { show(err && err.message ? err.message : String(err), true); b.disabled = false; };
     var run = google.script.run.withSuccessHandler(ok).withFailureHandler(bad);
     if (PAGE === 'order') run.submitOrder(v); else run.submitRepair(v);

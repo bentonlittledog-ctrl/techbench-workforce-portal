@@ -19,6 +19,7 @@
         <a class="btn <%= page === 'repair' ? 'btn-primary' : 'btn-ghost' %>" href="/bench/repair">Log a repair</a>
         <a class="btn btn-ghost" href="<%= openUrl %>" target="_blank" rel="noopener">Open in a new tab</a>
     </div>
+    <div id="tk" class="msg ok" role="status" hidden></div>
     <iframe id="gf" class="embedframe" src="about:blank" data-src="<%= src %>" title="<%= title %>" referrerpolicy="no-referrer"></iframe>
     <p class="sub">Form blank or asking you to sign in? Use <strong>Open in a new tab</strong> above.</p>
 <script>
@@ -34,7 +35,26 @@
     var q = '&bg=' + hex(bg, '#ffffff') + '&surf=' + hex(cv('--surface'), bg) + '&fg=' + hex(cv('--text'), '#111111') +
             '&muted=' + hex(cv('--muted'), '#667085') + '&line=' + hex(cv('--line'), '#d9dfe9');
     f.style.background = bg;
-    f.src = f.getAttribute('data-src') + q;
+    f.src = f.getAttribute('data-src') + q + '&po=' + encodeURIComponent(location.origin);
+    <% if (page === 'repair') { %>
+    // The form reports a saved repair; turn it into a ticket in the repair queue.
+    window.addEventListener('message', function (ev) {
+        if (!/^https:\/\/([a-z0-9-]+\.)*(googleusercontent|google)\.com$/i.test(ev.origin)) return;
+        var d = ev.data; if (!d || d.type !== 'tb-repair-logged') return;
+        var b = new URLSearchParams();
+        ['model', 'serial', 'complaint', 'parts', 'tier', 'notes', 'student_first', 'student_last', 'student_id', 'student_grade'].forEach(function (k) { b.set(k, d[k] == null ? '' : String(d[k])); });
+        b.set('client_ref', String(d.ref || '')); b.set('sheet_row', String(d.row || ''));
+        var box = document.getElementById('tk');
+        fetch('/bench/queue/from-form', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: b.toString() })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+                box.hidden = false; box.className = 'msg' + (j && j.ok ? ' ok' : ' bad'); box.textContent = '';
+                if (j && j.ok) { box.append('Saved to the sheet and added to the repair queue as '); var a = document.createElement('a'); a.href = '/bench/ticket?id=' + j.id; a.textContent = 'ticket #' + j.id; box.append(a, '.'); }
+                else box.textContent = 'Saved to the sheet, but the repair queue could not add it' + (j && j.error ? ': ' + j.error : '.') + ' Use New ticket in the queue.';
+            })
+            .catch(function () { box.hidden = false; box.className = 'msg bad'; box.textContent = 'Saved to the sheet, but the repair queue could not be reached. Use New ticket in the queue.'; });
+    });
+    <% } %>
 })();
 </script>
 </body>

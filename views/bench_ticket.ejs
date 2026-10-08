@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket #<%= t.id %> - Timecard Portal</title>
+    <%- headTags %>
+    <style>.kv{display:grid;grid-template-columns:150px 1fr;gap:8px 16px;margin:0}.kv dt{color:var(--muted);font-size:13px}.kv dd{margin:0;word-break:break-word}
+        .tl{list-style:none;margin:0;padding:0}.tl li{padding:10px 0;border-bottom:1px solid var(--line)}.tl li:last-child{border:0}.tl .who{color:var(--muted);font-size:13px}
+        .tl .k{display:inline-block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-right:6px}.pre{white-space:pre-wrap}
+        .row2{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.row2>*{flex:1 1 180px}.row2 button{flex:0 0 auto;margin:0}.dim{color:var(--muted)}</style>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <p style="margin:0 0 6px"><a href="/bench/queue">&larr; Repair queue</a></p>
+    <h1>#<%= t.id %> &middot; <%= t.model %></h1>
+    <p class="sub"><span class="badge <%= t.tone %>"><%= t.status %></span>
+        <% if (t.priority === 'High') { %> <span class="badge bad">High priority</span><% } %>
+        &nbsp;Opened <%= t.when %><% if (t.created_by_name) { %> by <%= t.created_by_name %><% } %> &middot;
+        <%= t.closed_at ? 'closed after ' + t.age + ' day' + (t.age === 1 ? '' : 's') : (t.age === 0 ? 'opened today' : 'open ' + t.age + ' day' + (t.age === 1 ? '' : 's')) %></p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+    <% if (history.length) { %>
+        <div class="msg">This device has been in before: <%= history.length %> earlier ticket<%= history.length === 1 ? '' : 's' %>.
+            <% history.forEach(h => { %><a href="/bench/ticket?id=<%= h.id %>">#<%= h.id %></a> (<%= h.status %>, <%= h.when %>) <% }) %></div>
+    <% } %>
+
+    <div class="grid2">
+        <div>
+            <div class="panel">
+                <h3>Status &amp; assignment</h3>
+                <form action="/bench/ticket/status" method="POST">
+                    <input type="hidden" name="id" value="<%= t.id %>">
+                    <div class="row2">
+                        <div><label for="st">Status</label>
+                            <select id="st" name="status"><% statuses.forEach(s => { %><option <%= t.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select></div>
+                    </div>
+                    <label for="stn">Note (optional)</label>
+                    <input type="text" id="stn" name="note" maxlength="600" placeholder="e.g. Ordered new battery, ETA Friday">
+                    <button type="submit">Update status</button>
+                </form>
+                <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+                <form action="/bench/ticket/assign" method="POST" class="row2">
+                    <input type="hidden" name="id" value="<%= t.id %>">
+                    <div><label for="as">Assigned to</label>
+                        <select id="as" name="assignee">
+                            <option value="">Nobody</option>
+                            <% people.forEach(p => { %><option value="<%= p.id %>" <%= t.assigned_to === p.id ? 'selected' : '' %>><%= p.name %><%= p.id === me ? ' (me)' : '' %></option><% }) %>
+                        </select></div>
+                    <button type="submit">Save</button>
+                    <% if (t.assigned_to !== me) { %><button type="submit" name="assignee" value="me" class="btn-ghost">Take it</button><% } %>
+                </form>
+            </div>
+            <div class="panel">
+                <h3>Checked in by</h3>
+                <dl class="kv">
+                    <dt>Student</dt><dd><strong><%= t.student || 'Not recorded' %></strong></dd>
+                    <dt>Student ID</dt><dd><%= t.student_id || '—' %></dd>
+                    <dt>Grade</dt><dd><%= t.student_grade || '—' %></dd>
+                </dl>
+                <h3 style="margin-top:22px">Device</h3>
+                <dl class="kv">
+                    <dt>Manufacturer / model</dt><dd><strong><%= t.model %></strong></dd>
+                    <dt>Serial / asset ID</dt><dd><%= t.serial || '—' %></dd>
+                    <dt>Chief complaint</dt><dd class="pre"><%= t.complaint || '—' %></dd>
+                    <dt>Parts needed</dt><dd><%= t.parts || 'None listed' %></dd>
+                    <dt>Repair tier</dt><dd><%= t.tier || '—' %></dd>
+                    <dt>Assigned to</dt><dd><%= t.assigned_name || 'Nobody yet' %></dd>
+                    <% if (t.sheet_row) { %><dt>Repair Logger row</dt><dd><%= t.sheet_row %></dd><% } %>
+                </dl>
+                <details style="margin-top:14px"><summary>Edit details</summary>
+                    <form action="/bench/ticket/edit" method="POST">
+                        <input type="hidden" name="id" value="<%= t.id %>">
+                        <div class="row2">
+                            <div><label>Student first name</label><input type="text" name="student_first" value="<%= t.student_first %>" maxlength="40"></div>
+                            <div><label>Student last name</label><input type="text" name="student_last" value="<%= t.student_last %>" maxlength="40"></div>
+                        </div>
+                        <div class="row2">
+                            <div><label>Student ID number</label><input type="text" name="student_id" value="<%= t.student_id %>" maxlength="20"></div>
+                            <div><label>Grade</label><select name="student_grade"><option value="">—</option><% grades.forEach(g => { %><option <%= t.student_grade === g ? 'selected' : '' %>><%= g %></option><% }) %></select></div>
+                        </div>
+                        <label>Manufacturer / model</label><input type="text" name="model" value="<%= t.model %>" maxlength="120" required>
+                        <label>Serial / asset ID</label><input type="text" name="serial" value="<%= t.serial %>" maxlength="40">
+                        <label>Chief complaint</label><textarea name="complaint" maxlength="600"><%= t.complaint %></textarea>
+                        <label>Parts needed</label><input type="text" name="parts" value="<%= t.parts %>" maxlength="400">
+                        <label>Repair tier</label><input type="text" name="tier" value="<%= t.tier %>" maxlength="40">
+                        <label>Priority</label><select name="priority"><% priorities.forEach(p => { %><option <%= t.priority === p ? 'selected' : '' %>><%= p %></option><% }) %></select>
+                        <button type="submit">Save changes</button>
+                    </form>
+                </details>
+                <p class="hint" style="margin-top:12px">Changes here update the portal queue only. The Repair Logger sheet keeps the row as it was first logged.</p>
+            </div>
+
+        </div>
+
+        <div>
+            <div class="panel">
+                <h3>Add a note</h3>
+                <form action="/bench/ticket/note" method="POST">
+                    <input type="hidden" name="id" value="<%= t.id %>">
+                    <textarea name="text" maxlength="1000" required placeholder="What did you find or do? Parts swapped, tests run, who you talked to..." aria-label="Note"></textarea>
+                    <button type="submit">Add note</button>
+                </form>
+            </div>
+            <div class="panel">
+                <h3>History</h3>
+                <ul class="tl">
+                    <% events.forEach(e => { %>
+                        <li><span class="k"><%= e.kind %></span><span class="pre"><%= e.text %></span>
+                            <div class="who"><%= e.user_name || 'Someone' %> &middot; <%= e.when %></div></li>
+                    <% }) %>
+                </ul>
+            </div>
+            <% if (isAdmin) { %>
+            <form action="/bench/ticket/delete" method="POST" onsubmit="return confirm('Delete this ticket and its history? This cannot be undone.');">
+                <input type="hidden" name="id" value="<%= t.id %>">
+                <button type="submit" class="btn-danger">Delete ticket</button>
+            </form>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

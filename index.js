@@ -400,6 +400,7 @@ require('./editing')(app, () => db, wrap);
 require('./accounts')(app, () => db, wrap);
 require('./education')(app, () => db, wrap, express);
 require('./bench')(app, () => db, wrap);
+require('./queue')(app, () => db, wrap);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)

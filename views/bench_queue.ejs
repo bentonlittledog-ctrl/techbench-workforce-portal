@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repair queue - Timecard Portal</title>
+    <%- headTags %>
+    <style>.qtabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.qtabs .chip.on{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+        td.cmp{max-width:320px}.dim{color:var(--muted)}.hi{font-weight:700;color:var(--bad)}tr.rowlink{cursor:pointer}tr.rowlink:hover{background:var(--accent-soft)}
+        .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}</style>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Repair queue</h1>
+    <p class="sub">Every repair logged with the Repair Logger lands here as an active ticket. Open one to update its status, add notes or assign it.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <div class="qtabs">
+        <% [['active','Active'],['mine','Mine'],['parts','Waiting on parts'],['ready','Ready to return'],['closed','Closed'],['all','All']].forEach(v => { %>
+            <a class="chip<%= view === v[0] ? ' on' : '' %>" href="/bench/queue?view=<%= v[0] %>"><%= v[1] %> <span class="n<%= count[v[0]] ? '' : ' zero' %>"><%= count[v[0]] %></span></a>
+        <% }) %>
+    </div>
+
+    <form class="searchbar" action="/bench/queue" method="GET">
+        <input type="hidden" name="view" value="<%= view %>">
+        <input type="search" name="q" value="<%= q %>" placeholder="Search student, ID, model, serial, complaint" aria-label="Search tickets">
+        <button type="submit">Search</button>
+    </form>
+
+    <div class="panel">
+        <% if (!rows.length) { %>
+            <p class="hint">No tickets here<%= q ? ' match your search' : ' right now' %>.</p>
+        <% } else { %>
+        <div style="overflow-x:auto">
+        <table>
+            <thead><tr><th>#</th><th>Student</th><th>Device</th><th>Serial / asset ID</th><th>Chief complaint</th><th>Status</th><th>Assigned</th><th>Age</th></tr></thead>
+            <tbody>
+            <% rows.forEach(t => { %>
+                <tr class="rowlink" onclick="location.href='/bench/ticket?id=<%= t.id %>'">
+                    <td><a href="/bench/ticket?id=<%= t.id %>"><%= t.id %></a></td>
+                    <td><%= t.student || '—' %><% if (t.student_grade) { %> <span class="dim">&middot; Gr. <%= t.student_grade %></span><% } %></td>
+                    <td><strong><%= t.model %></strong><% if (t.priority === 'High') { %> <span class="hi">&bull; High</span><% } %></td>
+                    <td><%= t.serial || '—' %></td>
+                    <td class="cmp"><%= t.complaint ? (t.complaint.length > 90 ? t.complaint.slice(0, 90) + '…' : t.complaint) : '—' %></td>
+                    <td><span class="badge <%= t.tone %>"><%= t.status %></span></td>
+                    <td><%= t.assigned_name || '—' %></td>
+                    <td class="dim"><%= t.age === 0 ? 'Today' : t.age + 'd' %></td>
+                </tr>
+            <% }) %>
+            </tbody>
+        </table>
+        </div>
+        <% } %>
+    </div>
+
+    <details class="panel">
+        <summary><strong>New ticket</strong> <span class="dim">&mdash; for a device that was not logged through the form</span></summary>
+        <form action="/bench/queue/new" method="POST">
+            <div class="two">
+                <div><label for="nf">Student first name</label><input type="text" id="nf" name="student_first" maxlength="40" required autocomplete="off"></div>
+                <div><label for="nl">Student last name</label><input type="text" id="nl" name="student_last" maxlength="40" required autocomplete="off"></div>
+            </div>
+            <div class="two">
+                <div><label for="ni">Student ID number</label><input type="text" id="ni" name="student_id" maxlength="20" required autocomplete="off" inputmode="numeric"></div>
+                <div><label for="ng">Grade</label><select id="ng" name="student_grade" required><option value="">Choose&hellip;</option><% grades.forEach(g => { %><option><%= g %></option><% }) %></select></div>
+            </div>
+            <label for="nm">Device model</label>
+            <input type="text" id="nm" name="model" list="devlist" maxlength="120" required autocomplete="off">
+            <datalist id="devlist"><% devices.forEach(d => { %><option value="<%= d %>"><% }) %></datalist>
+            <label for="ns">Serial number / asset ID</label>
+            <input type="text" id="ns" name="serial" maxlength="40" autocomplete="off">
+            <label for="nc">Chief complaint</label>
+            <textarea id="nc" name="complaint" maxlength="600" required></textarea>
+            <label for="np">Priority</label>
+            <select id="np" name="priority"><option>Normal</option><option>High</option></select>
+            <button type="submit">Create ticket</button>
+        </form>
+    </details>
+</body>
+</html>

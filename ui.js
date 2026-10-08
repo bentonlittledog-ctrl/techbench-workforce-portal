@@ -92,7 +92,8 @@ function navHtml(nav, theme) {
 
     if (nav.bench) {
         h += '<div class="grp">Tech Bench</div><ul>' +
-            (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
+            item('/bench/queue', 'tool', 'Repair queue', starts('/bench/queue') || starts('/bench/ticket')) +
+                (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
                 item('/bench/repair', 'tool', 'Log a repair', starts('/bench/repair')) : '') +
             (nav.admin ? item('/bench/setup', 'db', 'Sheet connection', starts('/bench/setup')) : '') + '</ul>';
     }
