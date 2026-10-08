@@ -25,8 +25,9 @@
             <% if (suggestion.other.length) { %>Not sure how to rate <%= suggestion.other.join(', ') %>; counted as a basic part.<% } %>
             <form action="/bench/ticket/tier" method="POST" style="display:inline-block;margin-left:8px"><input type="hidden" name="id" value="<%= t.id %>"><input type="hidden" name="tier" value="<%= suggestion.n %>"><button type="submit" class="btn-ghost" style="margin:0;padding:6px 12px;min-height:0">Use <%= suggestion.label.split(' - ')[0] %></button></form></div>
     <% } %>
+    <% if (stuck) { %><div class="msg bad">This ticket has been <strong><%= t.status %></strong> for <%= stuck %> days. Is something blocking it?</div><% } %>
     <% if (history.length) { %>
-        <div class="msg">This device has been in before: <%= history.length %> earlier ticket<%= history.length === 1 ? '' : 's' %>.
+        <div class="msg <%= prevSoon || times >= 3 ? 'bad' : '' %>"><strong>Repeat device:</strong> this is its <%= times %><%= times % 10 === 1 && times !== 11 ? 'st' : times % 10 === 2 && times !== 12 ? 'nd' : times % 10 === 3 && times !== 13 ? 'rd' : 'th' %> time in the shop<%= prevSoon ? ' (back within 90 days of #' + prevSoon.id + ')' : '' %>. All tickets for this device:
             <% history.forEach(h => { %><a href="/bench/ticket?id=<%= h.id %>">#<%= h.id %></a> (<%= h.status %>, <%= h.when %>) <% }) %></div>
     <% } %>
 
@@ -44,6 +45,13 @@
                     <input type="text" id="stn" name="note" maxlength="600" placeholder="e.g. Ordered new battery, ETA Friday">
                     <button type="submit">Update status</button>
                 </form>
+                <% if (mailConfigured && t.status === 'Repaired - Ready for Pickup') { %>
+                    <form action="/bench/ticket/notify" method="POST" style="margin-top:12px">
+                        <input type="hidden" name="id" value="<%= t.id %>">
+                        <button type="submit" class="btn-ghost" style="margin:0" <%= mailConfigured && mailTo.length ? '' : 'disabled' %>>Email pickup alert again</button>
+                        <span class="hint"><%= !mailConfigured ? 'Email alerts are not set up.' : !mailTo.length ? 'No email address on this ticket.' : 'Goes to ' + mailTo.join(', ') + '.' %></span>
+                    </form>
+                <% } %>
                 <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
                 <form action="/bench/ticket/assign" method="POST" class="row2">
                     <input type="hidden" name="id" value="<%= t.id %>">
@@ -71,6 +79,8 @@
                     <dt>Parts needed</dt><dd><%= t.parts || 'None listed' %></dd>
                     <dt>Repair tier</dt><dd><% if (tier.n) { %><strong><%= tier.label %></strong> <span class="badge ok">$<%= tier.fee %></span><% } else { %><%= tier.label || 'Not set yet' %><% } %></dd>
                     <dt>Assigned to</dt><dd><%= t.assigned_name || 'Nobody yet' %></dd>
+                    <dt>School</dt><dd><%= t.site_name || 'Not recorded' %></dd>
+                    <% if (mailConfigured) { %><dt>Pickup email</dt><dd><%= t.notify_email || 'None' %></dd><% } %>
                     <% if (t.sheet_row) { %><dt>Repair Logger row</dt><dd><%= t.sheet_row %></dd><% } %>
                 </dl>
                 <details style="margin-top:14px"><summary>Edit details</summary>
@@ -83,6 +93,10 @@
                         <div class="row2">
                             <div><label>Student ID number</label><input type="text" name="student_id" value="<%= t.student_id %>" maxlength="20"></div>
                             <div><label>Grade</label><select name="student_grade"><option value="">—</option><% grades.forEach(g => { %><option <%= t.student_grade === g ? 'selected' : '' %>><%= g %></option><% }) %></select></div>
+                        </div>
+                        <div class="row2">
+                            <div><label>School</label><select name="site_name"><option value="">Not recorded</option><% sites.forEach(s => { %><option <%= t.site_name === s ? 'selected' : '' %>><%= s %></option><% }) %></select></div>
+                            <% if (mailConfigured) { %><div><label>Email for pickup alerts</label><input type="email" name="notify_email" value="<%= t.notify_email %>" maxlength="120" placeholder="optional"></div><% } else { %><input type="hidden" name="notify_email" value="<%= t.notify_email || '' %>"><% } %>
                         </div>
                         <label>Manufacturer / model</label><input type="text" name="model" value="<%= t.model %>" maxlength="120" required>
                         <label>Serial / asset ID</label><input type="text" name="serial" value="<%= t.serial %>" maxlength="40">
@@ -110,6 +124,38 @@
 
         <div>
             <div class="panel">
+                <h3>Photos</h3>
+                <% if (!photos.length) { %><p class="hint" style="margin:0 0 10px">No photos yet. Add one at check-in to show the damage that was already there.</p><% } %>
+                <div class="photos">
+                    <% photos.forEach(p => { %>
+                        <div class="photo"><a href="/bench/photo/<%= p.file %>" target="_blank" rel="noopener"><img src="/bench/photo/<%= p.file %>" alt="<%= p.caption || 'Ticket photo' %>" loading="lazy"></a>
+                            <div class="cap"><%= p.caption || '' %><div class="dim"><%= p.uploaded_by_name %> &middot; <%= p.when %></div></div>
+                            <% if (canDeletePhotos || p.uploaded_by === me) { %><form action="/bench/ticket/photo/delete" method="POST" onsubmit="return confirm('Remove this photo?');"><input type="hidden" name="id" value="<%= p.id %>"><button type="submit" class="btn-ghost">Remove</button></form><% } %></div>
+                    <% }) %>
+                </div>
+                <div style="margin-top:12px">
+                    <label for="pcap">Caption (optional)</label>
+                    <input type="text" id="pcap" maxlength="80" placeholder="e.g. Cracked corner at check-in">
+                    <label for="pfile">Add a photo</label>
+                    <input type="file" id="pfile" accept="image/*" capture="environment">
+                    <p class="hint" id="pmsg" role="status" style="margin:6px 0 0"></p>
+                </div>
+            </div>
+            <div class="panel">
+                <h3>Time in each status</h3>
+                <% if (!timeline.segments.length) { %><p class="hint">No history yet.</p><% } else { %>
+                <table>
+                    <thead><tr><th>Status</th><th>Since</th><th>How long</th></tr></thead>
+                    <tbody>
+                    <% timeline.segments.forEach(s => { %>
+                        <tr><td><%= s.status %><%= s.current ? ' (now)' : '' %></td><td><%= fmtTs(s.from) %></td><td><%= human(s.ms) %></td></tr>
+                    <% }) %>
+                    </tbody>
+                </table>
+                <% } %>
+                <p class="hint" style="margin:10px 0 0">Tickets that sit in Awaiting Assignment, Awaiting Parts or Need to Order Parts for <%= stuckDays %> or more days are flagged as stuck.</p>
+            </div>
+            <div class="panel">
                 <h3>Add a note</h3>
                 <form action="/bench/ticket/note" method="POST">
                     <input type="hidden" name="id" value="<%= t.id %>">
@@ -134,5 +180,30 @@
             <% } %>
         </div>
     </div>
+<script>
+(function () {
+    var inp = document.getElementById('pfile'), msg = document.getElementById('pmsg');
+    if (!inp) return;
+    function send(blob, type) {
+        var cap = document.getElementById('pcap').value;
+        return fetch('/bench/ticket/photo?id=<%= t.id %>&caption=' + encodeURIComponent(cap), { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': type }, body: blob })
+            .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'The upload failed.' }; }); });
+    }
+    inp.addEventListener('change', function () {
+        var f = inp.files && inp.files[0]; if (!f) return;
+        msg.textContent = 'Uploading...';
+        function done(j) { if (j && j.ok) location.reload(); else { msg.textContent = (j && j.error) || 'The upload failed.'; inp.value = ''; } }
+        var img = new Image(), url = URL.createObjectURL(f);
+        img.onload = function () {          // shrink big phone / webcam pictures first
+            var max = 1600, s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+            c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            c.toBlob(function (b) { URL.revokeObjectURL(url); if (b) send(b, 'image/jpeg').then(done); else send(f, f.type).then(done); }, 'image/jpeg', 0.82);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); send(f, f.type || 'image/jpeg').then(done); };
+        img.src = url;
+    });
+})();
+</script>
 </body>
 </html>

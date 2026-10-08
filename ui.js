@@ -17,6 +17,8 @@ const ICON = {
     link: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3A4 4 0 0011 18.7l1-1"/>',
     box: '<path d="M21 8l-9-5-9 5 9 5zM3 8v8l9 5 9-5V8M12 13v8"/>',
     tool: '<path d="M14.5 6.5a4 4 0 005 5L12 19a2.1 2.1 0 01-3-3z M13 8L9 4 5 6l2 3z"/>',
+    chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
 };
 const svg = k => '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
@@ -93,9 +95,12 @@ function navHtml(nav, theme) {
     if (nav.bench) {
         h += '<div class="grp">Tech Bench</div><ul>' +
             item('/bench/queue', 'tool', 'Repair queue', starts('/bench/queue') || starts('/bench/ticket')) +
+            item('/bench/workload', 'users', 'Workload', starts('/bench/workload')) +
+            item('/bench/dashboard', 'chart', 'Dashboard', starts('/bench/dashboard')) +
                 (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
                 item('/bench/repair', 'tool', 'Log a repair', starts('/bench/repair')) : '') +
-            (nav.admin ? item('/bench/setup', 'db', 'Sheet connection', starts('/bench/setup')) : '') + '</ul>';
+            (nav.admin ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +
+                item('/bench/setup', 'db', 'Sheet connection', starts('/bench/setup')) : '') + '</ul>';
     }
 
     if (nav.admin) {

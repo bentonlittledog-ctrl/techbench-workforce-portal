@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workload - Timecard Portal</title>
+    <%- headTags %>
+    <style>.wl h3{margin:0 0 4px}.wl .meta{color:var(--muted);font-size:13px;margin:0 0 10px}.wl ul{list-style:none;margin:0;padding:0}.wl li{padding:8px 0;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:14px}
+        .wl li form{margin:0}.wl li button{margin:0;padding:4px 10px;min-height:0;font-size:12px}.wl .dev{flex:1 1 200px}.dim{color:var(--muted)}</style>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Workload</h1>
+    <p class="sub">Each person's open tickets, busiest first, so work can be spread evenly. Unassigned tickets are at the top.</p>
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <% if (unassigned.n) { %><%- include('partials/wl_card', { c: unassigned, canTake: true, me }) %><% } else { %><div class="msg ok">Every open ticket has someone assigned.</div><% } %>
+    <% cards.forEach(c => { %><%- include('partials/wl_card', { c, canTake: false, me }) %><% }) %>
+</body>
+</html>

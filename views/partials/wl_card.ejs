@@ -1,0 +1,19 @@
+        <div class="panel wl">
+    <h3><%= c.name %><%= c.id === me ? ' (me)' : '' %></h3>
+    <p class="meta"><strong><%= c.n %></strong> open<%= c.high ? ' · ' + c.high + ' high priority' : '' %><%= c.stuck ? ' · ' + c.stuck + ' stuck' : '' %><%= c.ready ? ' · ' + c.ready + ' ready for pickup' : '' %><%= c.n ? ' · oldest ' + c.oldest + (c.oldest === 1 ? ' day' : ' days') : '' %></p>
+    <% if (c.w != null) { %><div class="bar" style="grid-template-columns:1fr;margin:0 0 8px"><span class="track"><span class="fill" style="display:block;width:<%= c.w %>%"></span></span></div><% } %>
+    <% if (!c.list.length) { %><p class="hint" style="margin:0">Nothing open.</p><% } %>
+    <ul>
+        <% c.list.forEach(t => { %>
+            <li>
+                <a href="/bench/ticket?id=<%= t.id %>">#<%= t.id %></a>
+                <span class="dev"><strong><%= t.model %></strong><% if (t.student) { %> <span class="dim">· <%= t.student %></span><% } %></span>
+                <span class="badge <%= t.tone %>"><%= t.status %></span>
+                <% if (t.high) { %><span class="pill bad">High</span><% } %>
+                <% if (t.stuck) { %><span class="pill warn">Stuck <%= t.stuck %>d</span><% } %>
+                <span class="dim"><%= t.age === 0 ? 'Today' : t.age + 'd' %></span>
+                <% if (canTake) { %><form action="/bench/ticket/assign" method="POST"><input type="hidden" name="id" value="<%= t.id %>"><input type="hidden" name="assignee" value="me"><input type="hidden" name="next" value="workload"><button type="submit" class="btn-ghost">Take it</button></form><% } %>
+            </li>
+        <% }) %>
+    </ul>
+</div>

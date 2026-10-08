@@ -275,3 +275,29 @@ ul.plain li:last-child { border-bottom: 0; }
 .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 14px; margin: 4px 0 10px; }
 .checks label { display: flex; align-items: center; margin: 4px 0; font-size: 14px; color: var(--text); font-weight: 400; }
 pre.codeblock { margin: 12px 0 0; padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; max-height: 420px; overflow: auto; font: 12.5px/1.5 'IBM Plex Mono', monospace; white-space: pre; }
+
+/* ---- Tech Bench dashboard / workload / report ---- */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 20px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; text-decoration: none; color: inherit; display: block; }
+a.card:hover { border-color: var(--accent); }
+.card .big { font: 600 28px/1.1 'IBM Plex Mono', monospace; }
+.card .lbl { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.card.warn .big { color: var(--warn); } .card.bad .big { color: var(--bad); } .card.ok .big { color: var(--ok); }
+.bars { display: grid; gap: 8px; }
+.bar { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 44px; gap: 10px; align-items: center; font-size: 14px; }
+.bar .track { background: var(--accent-soft); border-radius: 6px; height: 14px; overflow: hidden; }
+.bar .fill { background: var(--accent); height: 100%; border-radius: 6px; }
+.bar .fill.warn { background: var(--warn); } .bar .fill.bad { background: var(--bad); } .bar .fill.ok { background: var(--ok); }
+.bar .num { text-align: right; font-family: 'IBM Plex Mono', monospace; }
+@media (max-width: 560px) { .bar { grid-template-columns: 1fr 44px; } .bar .track { grid-column: 1 / -1; order: 3; } }
+.rangebar { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
+.rangebar a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; font-size: 13px; background: var(--surface); }
+.rangebar a.on { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.photo { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); font-size: 12px; }
+.photo img { display: block; width: 100%; height: 110px; object-fit: cover; }
+.photo .cap { padding: 6px 8px; } .photo form { margin: 0; padding: 0 8px 8px; }
+.photo button { margin: 4px 0 0; padding: 4px 8px; min-height: 0; font-size: 12px; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; margin-left: 4px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.pill.warn { background: var(--warn-soft); color: var(--warn); } .pill.bad { background: var(--bad-soft); color: var(--bad); }
+@media print { .side, .rangebar, form button, .noprint { display: none !important; } }

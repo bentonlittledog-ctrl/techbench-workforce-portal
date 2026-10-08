@@ -23,6 +23,11 @@
         <% }) %>
     </div>
 
+    <div class="qtabs" style="margin-top:-6px">
+        <a class="chip<%= f.flag === 'stuck' ? ' on' : '' %>" href="/bench/queue?flag=stuck">Stuck <%= stuckDays %>+ days <span class="n<%= count.stuck ? '' : ' zero' %>"><%= count.stuck %></span></a>
+        <a class="chip<%= f.flag === 'repeat' ? ' on' : '' %>" href="/bench/queue?flag=repeat">Repeat devices <span class="n<%= count.repeat ? '' : ' zero' %>"><%= count.repeat %></span></a>
+    </div>
+
     <form class="panel filters" action="/bench/queue" method="GET">
         <input type="hidden" name="view" value="<%= view %>">
         <div class="searchbar" style="margin-bottom:0">
@@ -43,6 +48,10 @@
                 <div><label for="ftr">Repair tier</label>
                     <select id="ftr" name="tier"><option value="">Any</option><option value="none" <%= f.tier === 'none' ? 'selected' : '' %>>Not set</option>
                         <% [1,2,3,4].forEach(n => { %><option value="<%= n %>" <%= f.tier === String(n) ? 'selected' : '' %>>Tier <%= n %> - <%= TIERS[n].name %></option><% }) %></select></div>
+                <div><label for="fl">Flag</label>
+                    <select id="fl" name="flag"><option value="">None</option><option value="stuck" <%= f.flag === 'stuck' ? 'selected' : '' %>>Stuck (<%= stuckDays %>+ days)</option><option value="repeat" <%= f.flag === 'repeat' ? 'selected' : '' %>>Repeat devices</option></select></div>
+                <% if (schools.length) { %><div><label for="fsc">School</label>
+                    <select id="fsc" name="school"><option value="">All schools</option><% schools.forEach(s => { %><option <%= f.school === s ? 'selected' : '' %>><%= s %></option><% }) %></select></div><% } %>
                 <div><label for="fm">Device model</label>
                     <select id="fm" name="model"><option value="">Any model</option><% models.forEach(m => { %><option <%= f.model === m ? 'selected' : '' %>><%= m %></option><% }) %></select></div>
                 <div><label for="ff">Opened on or after</label><input type="date" id="ff" name="from" value="<%= f.from %>"></div>
@@ -72,7 +81,7 @@
                 <tr class="rowlink" onclick="location.href='/bench/ticket?id=<%= t.id %>'">
                     <td><a href="/bench/ticket?id=<%= t.id %>"><%= t.id %></a></td>
                     <td><%= t.student || '—' %></td>
-                    <td><strong><%= t.model %></strong><% if (t.priority === 'High') { %> <span class="hi">&bull; High</span><% } %><% if (t.tierN) { %><div class="dim" style="font-size:12px">Tier <%= t.tierN %> &middot; <%= TIERS[t.tierN].name %></div><% } %></td>
+                    <td><strong><%= t.model %></strong><% if (t.priority === 'High') { %> <span class="hi">&bull; High</span><% } %><% if (t.repeatN > 1) { %><span class="pill <%= t.repeatN >= 3 ? 'bad' : 'warn' %>" title="This serial number has had <%= t.repeatN %> tickets">Repeat &times;<%= t.repeatN %></span><% } %><% if (t.stuck && t.status !== 'Returned to Student' && t.status !== 'Unrepairable') { %><span class="pill bad">Stuck <%= t.stuck %>d</span><% } %><% if (t.tierN) { %><div class="dim" style="font-size:12px">Tier <%= t.tierN %> &middot; <%= TIERS[t.tierN].name %></div><% } %></td>
                     <td><%= t.serial || '—' %></td>
                     <td class="cmp"><%= t.complaint ? (t.complaint.length > 90 ? t.complaint.slice(0, 90) + '…' : t.complaint) : '—' %></td>
                     <td><span class="badge <%= t.tone %>"><%= t.status %></span></td>
@@ -106,6 +115,8 @@
             <textarea id="nc" name="complaint" maxlength="600" required></textarea>
             <label for="nt">Repair tier</label>
             <select id="nt" name="tier"><option value="">Decide later</option><% [1,2,3,4].forEach(n => { %><option value="<%= n %>">Tier <%= n %> - <%= TIERS[n].name %> ($<%= TIERS[n].fee %>)</option><% }) %></select>
+            <% if (mailConfigured) { %><label for="ne">Email for pickup alerts (optional)</label>
+            <input type="email" id="ne" name="notify_email" maxlength="120" autocomplete="off" placeholder="student or parent address"><% } %>
             <label for="np">Priority</label>
             <select id="np" name="priority"><option>Normal</option><option>High</option></select>
             <button type="submit">Create ticket</button>

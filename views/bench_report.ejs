@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fee report - Timecard Portal</title>
+    <%- headTags %>
+    <style>.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:4px 14px;margin:0 0 12px}.num{text-align:right;font-family:'IBM Plex Mono',monospace}.dim{color:var(--muted)}tfoot td{font-weight:700;border-top:2px solid var(--line)}</style>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Fee report</h1>
+    <p class="sub">What is owed under the repair fee schedule, by tier, for a date range. Fees come from the tier on each ticket, so check any ticket marked &ldquo;Tier not set&rdquo; first. Actual billing may differ from these suggested fees.</p>
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <form class="panel noprint" action="/bench/report" method="GET">
+        <div class="fgrid">
+            <div><label for="rf">From</label><input type="date" id="rf" name="from" value="<%= f.from %>" required></div>
+            <div><label for="rt">To</label><input type="date" id="rt" name="to" value="<%= f.to %>" required></div>
+            <div><label for="rb">Date used</label>
+                <select id="rb" name="basis"><option value="opened" <%= f.basis === 'opened' ? 'selected' : '' %>>Date the ticket was opened</option><option value="finished" <%= f.basis === 'finished' ? 'selected' : '' %>>Date the repair was finished</option></select></div>
+            <div><label for="rs">Tickets included</label>
+                <select id="rs" name="scope"><option value="billable" <%= f.scope === 'billable' ? 'selected' : '' %>>Finished repairs (and lost / stolen devices)</option><option value="all" <%= f.scope === 'all' ? 'selected' : '' %>>Every ticket</option></select></div>
+            <div><label for="rc">School</label>
+                <select id="rc" name="school"><option value="">All schools</option><% schools.forEach(s => { %><option <%= f.school === s ? 'selected' : '' %>><%= s %></option><% }) %></select></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <button type="submit" style="margin:0">Run report</button>
+            <a class="btn btn-ghost" href="/bench/report.csv?<%= qs %>">Download CSV</a>
+            <button type="button" class="btn-ghost" style="margin:0" onclick="window.print()">Print</button>
+        </div>
+    </form>
+
+    <div class="cards">
+        <div class="card ok"><div class="big">$<%= grand.toLocaleString('en-US') %></div><div class="lbl">Total owed</div></div>
+        <div class="card"><div class="big"><%= count %></div><div class="lbl">Tickets with a tier</div></div>
+        <div class="card <%= noTier ? 'warn' : '' %>"><div class="big"><%= noTier %></div><div class="lbl">Tier not set (not counted)</div></div>
+    </div>
+
+    <div class="panel">
+        <h3>By tier</h3>
+        <div style="overflow-x:auto"><table>
+            <thead><tr><th>Tier</th><th class="num">Fee each</th><th class="num">Repairs</th><th class="num">Total</th></tr></thead>
+            <tbody><% byTier.forEach(x => { %><tr><td>Tier <%= x.n %> - <%= x.name %></td><td class="num">$<%= x.fee %></td><td class="num"><%= x.count %></td><td class="num">$<%= x.total.toLocaleString('en-US') %></td></tr><% }) %></tbody>
+            <tfoot><tr><td>Total</td><td></td><td class="num"><%= count %></td><td class="num">$<%= grand.toLocaleString('en-US') %></td></tr></tfoot>
+        </table></div>
+    </div>
+
+    <div class="grid2">
+        <div class="panel">
+            <h3>By school</h3>
+            <% if (!bySchool.length) { %><p class="hint">Nothing in this range.</p><% } else { %>
+            <table><thead><tr><th>School</th><th class="num">Repairs</th><th class="num">Total</th></tr></thead>
+                <tbody><% bySchool.forEach(x => { %><tr><td><%= x.school %></td><td class="num"><%= x.count %></td><td class="num">$<%= x.total.toLocaleString('en-US') %></td></tr><% }) %></tbody></table>
+            <% } %>
+        </div>
+        <div class="panel">
+            <h3>By student</h3>
+            <% if (!byStudent.length) { %><p class="hint">Nothing in this range.</p><% } else { %>
+            <div style="max-height:340px;overflow:auto"><table><thead><tr><th>Student</th><th>ID</th><th class="num">Repairs</th><th class="num">Owed</th></tr></thead>
+                <tbody><% byStudent.forEach(x => { %><tr><td><%= x.student %></td><td><%= x.student_id || '—' %></td><td class="num"><%= x.count %></td><td class="num">$<%= x.total.toLocaleString('en-US') %></td></tr><% }) %></tbody></table></div>
+            <% } %>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>Tickets in this report (<%= rows.length %>)</h3>
+        <% if (!rows.length) { %><p class="hint">No tickets match.</p><% } else { %>
+        <div style="overflow-x:auto"><table>
+            <thead><tr><th>#</th><th>Opened</th><th>Finished</th><th>Student</th><th>Device</th><th>Tier</th><th class="num">Fee</th><th>Status</th></tr></thead>
+            <tbody>
+            <% rows.forEach(r => { %>
+                <tr><td><a href="/bench/ticket?id=<%= r.id %>"><%= r.id %></a></td><td><%= r.opened %></td><td><%= r.finished || '—' %></td>
+                    <td><%= r.student || '—' %><% if (r.student_id) { %> <span class="dim">(<%= r.student_id %>)</span><% } %></td>
+                    <td><%= r.model %><% if (r.serial) { %> <span class="dim"><%= r.serial %></span><% } %></td>
+                    <td><%= r.tier ? 'Tier ' + r.tier : 'Not set' %></td><td class="num"><%= r.tier ? '$' + r.fee : '—' %></td><td><%= r.status %></td></tr>
+            <% }) %>
+            </tbody>
+        </table></div>
+        <% } %>
+    </div>
+</body>
+</html>

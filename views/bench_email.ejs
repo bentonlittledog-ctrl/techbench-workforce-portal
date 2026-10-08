@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email alerts - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Email alerts</h1>
+    <p class="sub">When a repair moves to <strong>Repaired - Ready for Pickup</strong>, the portal can email the address on the ticket. It sends through the Resend email service.</p>
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <div class="panel">
+        <h3>Status</h3>
+        <p><span class="badge <%= configured ? 'ok' : 'warn' %>"><%= configured ? 'Ready to send' : 'Not set up yet' %></span></p>
+        <ul class="plain">
+            <li>Email service key (<code>RESEND_API_KEY</code>): <%= keySet ? 'set' : 'missing' %></li>
+            <li>Sender address (<code>MAIL_FROM</code>): <%= fromSet ? from : 'missing' %></li>
+            <li>Always copy (<code>NOTIFY_CC</code>): <%= cc.length ? cc.join(', ') : 'nobody' %></li>
+            <li>Pickup note (<code>PICKUP_NOTE</code>): <%= pickup || 'none' %></li>
+        </ul>
+    </div>
+
+    <% if (configured) { %>
+    <form class="panel" action="/bench/email/test" method="POST">
+        <h3>Send a test</h3>
+        <label for="to">Send to</label>
+        <input type="email" id="to" name="to" required maxlength="120" placeholder="you@example.com">
+        <button type="submit">Send test email</button>
+    </form>
+    <% } %>
+
+    <div class="panel">
+        <h3>Set it up</h3>
+        <ol>
+            <li>Ask IT whether the district is happy with email going out from a service like Resend, and which address it should come from. Emails to <code>@sd5.k12.mt.us</code> addresses may be filtered, so test with a real student address.</li>
+            <li>Create a free account at resend.com, verify the domain you want to send from, and create an API key.</li>
+            <li>In Render, open this service &rarr; <strong>Environment</strong> and add:
+                <ul>
+                    <li><code>RESEND_API_KEY</code> &mdash; the key you created</li>
+                    <li><code>MAIL_FROM</code> &mdash; for example <code>Tech Bench &lt;bench@yourdomain.org&gt;</code></li>
+                    <li><code>NOTIFY_CC</code> (optional) &mdash; addresses that get every pickup email, separated by commas</li>
+                    <li><code>PICKUP_NOTE</code> (optional) &mdash; a line added to each email, such as where to pick the device up</li>
+                </ul></li>
+            <li>Save. Render restarts; come back here and send a test.</li>
+        </ol>
+        <p class="hint">Each ticket has its own &ldquo;Email for pickup alerts&rdquo; box (in Edit details, or when you create the ticket). With no address there and nobody in <code>NOTIFY_CC</code>, nothing is sent. The email names the device and ticket number and the student's first name only.</p>
+    </div>
+</body>
+</html>
