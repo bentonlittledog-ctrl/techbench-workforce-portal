@@ -4,9 +4,9 @@ const bench = require('./bench');
 const STATUSES = ['Awaiting Assignment', 'Awaiting Diagnostic', 'Awaiting Repair', 'Awaiting Parts', 'Diagnostic in Progress', 'Quality Assurance Inspection',
     'Repair in Progress', 'Need to Order Parts', 'Repaired - Ready for Pickup', 'Unrepairable', 'Returned to Student'];
 const CLOSED = ['Unrepairable', 'Returned to Student'];
+const GRADES = ['6', '7', '8', '9', '10', '11', '12', 'Other'];
 const FIRST = 'Awaiting Assignment', READY = 'Repaired - Ready for Pickup', PARTS = ['Awaiting Parts', 'Need to Order Parts'];
 const OLD = { 'New': FIRST, 'Diagnosing': 'Diagnostic in Progress', 'Waiting on parts': 'Awaiting Parts', 'In repair': 'Repair in Progress', 'Testing': 'Quality Assurance Inspection', 'Ready to return': READY, 'Returned': 'Returned to Student' };
-const GRADES = ['6', '7', '8', '9', '10', '11', '12', 'Other'];
 const PRIORITIES = ['Normal', 'High'];
 const one = (s, n) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, n || 200);
 const multi = (s, n) => String(s == null ? '' : s).replace(/\r/g, '').trim().slice(0, n || 1000);
@@ -111,29 +111,66 @@ function mount(app, getDb, wrap) {
     }
 
     // ---------- the queue ----------
+    const SORTS = { priority: 'Priority, then oldest', newest: 'Newest first', oldest: 'Oldest first', updated: 'Recently updated', longest: 'Open the longest' };
+    const day = ts => { const d = new Date(String(ts || '').replace(' ', 'T') + 'Z'); return isNaN(d) ? '' : d.toLocaleDateString('en-CA', { timeZone: 'America/Denver' }); };   // YYYY-MM-DD in Mountain time
+    const isDate = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+
     app.get('/bench/queue', wrap(async (req, res) => {
         const db = await gate(req, res); if (!db) return;
-        const view = ['active', 'mine', 'parts', 'ready', 'closed', 'all'].includes(req.query.view) ? req.query.view : 'active';
-        const q = one(req.query.q, 60);
-        const all = await db.all('SELECT * FROM repair_tickets ORDER BY id DESC LIMIT 2000');
+        const Q = req.query || {};
+        const f = {
+            q: one(Q.q, 60),
+            status: STATUSES.includes(Q.status) ? Q.status : '',
+            assignee: one(Q.assignee, 12),                      // '', 'none', 'me' or an employee id
+            priority: PRIORITIES.includes(Q.priority) ? Q.priority : '',
+            model: one(Q.model, 120),
+            from: isDate(Q.from) ? Q.from : '', to: isDate(Q.to) ? Q.to : '',
+            sort: SORTS[Q.sort] ? Q.sort : 'priority'
+        };
+        let view = ['active', 'mine', 'parts', 'ready', 'closed', 'all'].includes(Q.view) ? Q.view : 'active';
+        if (f.status && view !== 'mine') view = 'all';          // picking an exact status overrides the tab
+        const me = req.session.userID;
+        const all = await db.all('SELECT * FROM repair_tickets ORDER BY id DESC LIMIT 5000');
         const isOpen = t => !CLOSED.includes(t.status);
         const count = {
             active: all.filter(isOpen).length,
-            mine: all.filter(t => isOpen(t) && t.assigned_to === req.session.userID).length,
+            mine: all.filter(t => isOpen(t) && t.assigned_to === me).length,
             parts: all.filter(t => PARTS.includes(t.status)).length,
             ready: all.filter(t => t.status === READY).length,
             closed: all.filter(t => !isOpen(t)).length, all: all.length
         };
-        let rows = all.filter(t => view === 'all' ? true : view === 'closed' ? !isOpen(t) : view === 'mine' ? isOpen(t) && t.assigned_to === req.session.userID
+        let rows = all.filter(t => view === 'all' ? true : view === 'closed' ? !isOpen(t) : view === 'mine' ? isOpen(t) && t.assigned_to === me
             : view === 'parts' ? PARTS.includes(t.status) : view === 'ready' ? t.status === READY : isOpen(t));
-        if (q) {
-            const n = q.toLowerCase();
+        if (f.q) {
+            const n = f.q.toLowerCase();
             rows = rows.filter(t => [t.model, t.serial, t.complaint, t.assigned_name, t.status, '#' + t.id, nameOf(t), t.student_id].join(' ').toLowerCase().includes(n));
         }
-        if (view !== 'closed' && view !== 'all') rows.sort((a, b) => (b.priority === 'High') - (a.priority === 'High') || a.id - b.id);   // urgent first, then oldest first
+        if (f.status) rows = rows.filter(t => t.status === f.status);
+        if (f.assignee === 'none') rows = rows.filter(t => !t.assigned_to);
+        else if (f.assignee === 'me') rows = rows.filter(t => t.assigned_to === me);
+        else if (/^\d+$/.test(f.assignee)) rows = rows.filter(t => String(t.assigned_to) === f.assignee);
+        if (f.priority) rows = rows.filter(t => t.priority === f.priority);
+        if (f.model) rows = rows.filter(t => t.model === f.model);
+        if (f.from) rows = rows.filter(t => day(t.created_at) >= f.from);
+        if (f.to) rows = rows.filter(t => day(t.created_at) <= f.to);
+        const by = {
+            priority: (a, b) => (b.priority === 'High') - (a.priority === 'High') || a.id - b.id,
+            newest: (a, b) => b.id - a.id, oldest: (a, b) => a.id - b.id,
+            updated: (a, b) => String(b.updated_at).localeCompare(String(a.updated_at)) || b.id - a.id,
+            longest: (a, b) => ageDays(b.created_at, b.closed_at) - ageDays(a.created_at, a.closed_at) || a.id - b.id
+        };
+        const sort = (view === 'closed' || view === 'all') && !Q.sort ? 'newest' : f.sort;   // history views default to newest first
+        f.sort = sort;
+        rows.sort(by[sort]);
+        const total = rows.length;
         rows = rows.slice(0, 300).map(t => Object.assign({}, t, { age: ageDays(t.created_at, t.closed_at), tone: tone(t.status), when: fmt(t.created_at), student: nameOf(t) }));
         const devices = await db.all("SELECT d.name FROM devices d JOIN programs p ON p.id = d.program_id WHERE p.name = 'Student Tech Work Bench' ORDER BY d.brand, d.name").catch(() => []);
-        res.render('bench_queue', { flash: takeFlash(req), view, q, count, rows, devices: devices.map(d => d.name), statuses: STATUSES, grades: GRADES, me: req.session.userID });
+        const models = [...new Set(all.map(t => t.model))].sort((a, b) => a.localeCompare(b));
+        const filterKeys = ['q', 'status', 'assignee', 'priority', 'model', 'from', 'to'];
+        const activeFilters = filterKeys.filter(k => f[k]).length;
+        const qs = filterKeys.concat(['sort']).filter(k => f[k] && !(k === 'sort' && !Q.sort)).map(k => k + '=' + encodeURIComponent(f[k])).join('&');
+        res.render('bench_queue', { flash: takeFlash(req), view, f, sorts: SORTS, count, rows, total, models, activeFilters, qs, people: await people(db),
+            devices: devices.map(d => d.name), statuses: STATUSES, grades: GRADES, priorities: PRIORITIES, me });
     }));
 
     app.post('/bench/queue/new', wrap(async (req, res) => {
@@ -215,7 +252,7 @@ function mount(app, getDb, wrap) {
         const b = req.body, model = one(b.model, 120);
         if (!model) { flash(req, 'The device model cannot be blank.', true); return back(res, t.id); }
         const grade = GRADES.includes(one(b.student_grade, 10)) ? one(b.student_grade, 10) : t.student_grade;
-        const n = { student_first: one(b.student_first, 40), student_last: one(b.student_last, 40), student_id: sid(b.student_id), student_grade: grade, model, serial: one(b.serial, 40), complaint: multi(b.complaint, 600), parts: one(b.parts, 400), tier: one(b.tier, 40), priority: PRIORITIES.includes(b.priority) ? b.priority : t.priority };
+        const n = { student_grade: grade, student_first: one(b.student_first, 40), student_last: one(b.student_last, 40), student_id: sid(b.student_id), model, serial: one(b.serial, 40), complaint: multi(b.complaint, 600), parts: one(b.parts, 400), tier: one(b.tier, 40), priority: PRIORITIES.includes(b.priority) ? b.priority : t.priority };
         const changed = Object.keys(n).filter(k => String(n[k]) !== String(t[k] == null ? '' : t[k]));
         if (changed.length) {
             await db.run('UPDATE repair_tickets SET model=?, serial=?, complaint=?, parts=?, tier=?, priority=?, student_first=?, student_last=?, student_id=?, student_grade=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',

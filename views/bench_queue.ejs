@@ -7,7 +7,8 @@
     <%- headTags %>
     <style>.qtabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.qtabs .chip.on{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
         td.cmp{max-width:320px}.dim{color:var(--muted)}.hi{font-weight:700;color:var(--bad)}tr.rowlink{cursor:pointer}tr.rowlink:hover{background:var(--accent-soft)}
-        .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}</style>
+        .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.two{grid-template-columns:1fr}}
+        .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 14px;margin:6px 0 14px}.filters summary{cursor:pointer;font-weight:600}</style>
 </head>
 <body>
     <%- include('partials/nav') %>
@@ -17,20 +18,48 @@
     <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
 
     <div class="qtabs">
-        <% [['active','Active'],['mine','Mine'],['parts','Waiting on parts'],['ready','Ready to return'],['closed','Closed'],['all','All']].forEach(v => { %>
-            <a class="chip<%= view === v[0] ? ' on' : '' %>" href="/bench/queue?view=<%= v[0] %>"><%= v[1] %> <span class="n<%= count[v[0]] ? '' : ' zero' %>"><%= count[v[0]] %></span></a>
+        <% [['active','Active Tickets'],['mine','Assigned to me'],['parts','Awaiting Parts'],['ready','Repaired / RFP'],['closed','Closed Tickets'],['all','All']].forEach(v => { %>
+            <a class="chip<%= view === v[0] ? ' on' : '' %>" href="/bench/queue?view=<%= v[0] %><%= qs ? '&' + qs : '' %>"><%= v[1] %> <span class="n<%= count[v[0]] ? '' : ' zero' %>"><%= count[v[0]] %></span></a>
         <% }) %>
     </div>
 
-    <form class="searchbar" action="/bench/queue" method="GET">
+    <form class="panel filters" action="/bench/queue" method="GET">
         <input type="hidden" name="view" value="<%= view %>">
-        <input type="search" name="q" value="<%= q %>" placeholder="Search student, ID, model, serial, complaint" aria-label="Search tickets">
-        <button type="submit">Search</button>
+        <div class="searchbar" style="margin-bottom:0">
+            <input type="search" name="q" value="<%= f.q %>" placeholder="Search student, ID, model, serial, complaint" aria-label="Search tickets">
+            <button type="submit">Search</button>
+        </div>
+        <details <%= (activeFilters - (f.q ? 1 : 0)) > 0 || f.sort !== 'priority' && f.sort !== 'newest' ? 'open' : '' %> style="margin-top:12px">
+            <summary>Filters &amp; sorting<%= activeFilters ? ' (' + activeFilters + ' active)' : '' %></summary>
+            <div class="fgrid">
+                <div><label for="fs">Status</label>
+                    <select id="fs" name="status"><option value="">Any status</option><% statuses.forEach(s => { %><option <%= f.status === s ? 'selected' : '' %>><%= s %></option><% }) %></select></div>
+                <div><label for="fa">Assigned to</label>
+                    <select id="fa" name="assignee"><option value="">Anyone</option><option value="none" <%= f.assignee === 'none' ? 'selected' : '' %>>Unassigned</option>
+                        <option value="me" <%= f.assignee === 'me' ? 'selected' : '' %>>Me</option>
+                        <% people.forEach(p => { if (p.id !== me) { %><option value="<%= p.id %>" <%= f.assignee === String(p.id) ? 'selected' : '' %>><%= p.name %></option><% } }) %></select></div>
+                <div><label for="fp">Priority</label>
+                    <select id="fp" name="priority"><option value="">Any</option><% priorities.forEach(p => { %><option <%= f.priority === p ? 'selected' : '' %>><%= p %></option><% }) %></select></div>
+                <div><label for="fm">Device model</label>
+                    <select id="fm" name="model"><option value="">Any model</option><% models.forEach(m => { %><option <%= f.model === m ? 'selected' : '' %>><%= m %></option><% }) %></select></div>
+                <div><label for="ff">Opened on or after</label><input type="date" id="ff" name="from" value="<%= f.from %>"></div>
+                <div><label for="ft">Opened on or before</label><input type="date" id="ft" name="to" value="<%= f.to %>"></div>
+                <div><label for="fo">Sort by</label>
+                    <select id="fo" name="sort"><% Object.keys(sorts).forEach(k => { %><option value="<%= k %>" <%= f.sort === k ? 'selected' : '' %>><%= sorts[k] %></option><% }) %></select></div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <button type="submit" style="margin:0">Apply</button>
+                <a href="/bench/queue?view=<%= view === 'all' && f.status ? 'active' : view %>">Clear filters</a>
+            </div>
+            <% if (f.status) { %><p class="hint" style="margin:10px 0 0">Choosing a status searches all tickets, whichever tab you were on.</p><% } %>
+        </details>
     </form>
+
+    <p class="dim" style="margin:0 0 10px"><%= total %> ticket<%= total === 1 ? '' : 's' %><%= total > rows.length ? ' (showing the first ' + rows.length + ')' : '' %></p>
 
     <div class="panel">
         <% if (!rows.length) { %>
-            <p class="hint">No tickets here<%= q ? ' match your search' : ' right now' %>.</p>
+            <p class="hint">No tickets here<%= activeFilters ? ' match your search or filters' : ' right now' %>.</p>
         <% } else { %>
         <div style="overflow-x:auto">
         <table>
@@ -39,7 +68,7 @@
             <% rows.forEach(t => { %>
                 <tr class="rowlink" onclick="location.href='/bench/ticket?id=<%= t.id %>'">
                     <td><a href="/bench/ticket?id=<%= t.id %>"><%= t.id %></a></td>
-                    <td><%= t.student || '—' %><% if (t.student_grade) { %> <span class="dim">&middot; Gr. <%= t.student_grade %></span><% } %></td>
+                    <td><%= t.student || '—' %></td>
                     <td><strong><%= t.model %></strong><% if (t.priority === 'High') { %> <span class="hi">&bull; High</span><% } %></td>
                     <td><%= t.serial || '—' %></td>
                     <td class="cmp"><%= t.complaint ? (t.complaint.length > 90 ? t.complaint.slice(0, 90) + '…' : t.complaint) : '—' %></td>
