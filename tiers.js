@@ -1,10 +1,10 @@
 // Repair tiers and the rules that suggest one from the parts on a repair (the district's repair fee schedule).
 const TIERS = {
-    1: { name: 'Basic Repair', fee: 25, items: ['Keyboard', 'Trackpad', 'Bezel', 'Battery', 'Camera', 'Charger / AC adapter', 'Protective case', 'Other small parts, as assessed by KPS'],
+    1: { name: 'Basic Repair', fee: 25, items: ['Keyboard', 'Trackpad', 'Bezel', 'Battery', 'Charger / AC adapter', 'Protective case', 'Other small parts, as assessed by KPS'],
          note: 'Each additional Basic Repair item in the same incident may move the claim to the next tier.' },
-    2: { name: 'Moderate Repair', fee: 100, items: ['Screen', 'Palmrest assembly', 'Hinges', 'Body damage (2+ areas)', 'Other standard parts, as assessed by KPS'],
+    2: { name: 'Moderate Repair', fee: 100, items: ['Screen', 'Camera', 'Palmrest assembly', 'Hinges', 'Body damage (2+ areas)', 'Other standard parts, as assessed by KPS'],
          note: 'Each additional Standard Repair item in the same incident may move the claim to the next tier. Two or more Basic Repair items in the same incident may be billed at this tier.' },
-    3: { name: 'Advanced Repair', fee: 200, items: ['Motherboard', 'Other major parts, as assessed by KPS'],
+    3: { name: 'Advanced Repair', fee: 200, items: ['Motherboard', 'Daughterboard', 'Other major parts, as assessed by KPS'],
          note: 'A combination of Basic and Standard Repair items in the same incident may be billed at this tier.' },
     4: { name: 'Device Replacement', fee: 400, items: ['Device lost', 'Device stolen (police report required)', 'Damage beyond repair', 'Device not returned at check-in'], note: '' }
 };
@@ -15,9 +15,9 @@ const num = text => { const m = /tier\s*([1-4])\b/i.exec(String(text || '')) || 
 
 // Keep this in step with classifyTier_ in appsscript/Code.gs (the tests check that both give the same answers).
 function classify(parts, special) {
-    const major = /motherboard|logic board|mainboard|system board/i;
-    const std = /screen|lcd|display|digitizer|palm ?rest|hinge|body damage|top cover|bottom cover|chassis|housing/i;
-    const basic = /keyboard|track ?pad|touch ?pad|bezel|battery|camera|webcam|charger|adapter|power cord|case/i;
+    const major = /motherboard|daughter ?board|logic board|mainboard|system board/i;
+    const std = /screen|lcd|display|digitizer|camera|webcam|palm ?rest|hinge|body damage|top cover|bottom cover|chassis|housing/i;
+    const basic = /keyboard|track ?pad|touch ?pad|bezel|battery|charger|adapter|power cord|case/i;
     let nM = 0, nS = 0, nB = 0; const other = [];
     (parts || []).forEach(p => {
         p = String(p);

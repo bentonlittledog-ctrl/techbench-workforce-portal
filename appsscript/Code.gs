@@ -116,11 +116,11 @@ function submitOrder(v) {
 }
 // ---- Repair tiers (the district repair fee schedule) ----
 var TIER_INFO_ = {
-  1: { name: 'Basic Repair', fee: 25, items: ['Keyboard', 'Trackpad', 'Bezel', 'Battery', 'Camera', 'Charger / AC adapter', 'Protective case', 'Other small parts, as assessed by KPS'],
+  1: { name: 'Basic Repair', fee: 25, items: ['Keyboard', 'Trackpad', 'Bezel', 'Battery', 'Charger / AC adapter', 'Protective case', 'Other small parts, as assessed by KPS'],
        note: 'Each additional Basic Repair item in the same incident may move the claim to the next tier.' },
-  2: { name: 'Moderate Repair', fee: 100, items: ['Screen', 'Palmrest assembly', 'Hinges', 'Body damage (2+ areas)', 'Other standard parts, as assessed by KPS'],
+  2: { name: 'Moderate Repair', fee: 100, items: ['Screen', 'Camera', 'Palmrest assembly', 'Hinges', 'Body damage (2+ areas)', 'Other standard parts, as assessed by KPS'],
        note: 'Each additional Standard Repair item in the same incident may move the claim to the next tier. Two or more Basic Repair items in the same incident may be billed at this tier.' },
-  3: { name: 'Advanced Repair', fee: 200, items: ['Motherboard', 'Other major parts, as assessed by KPS'],
+  3: { name: 'Advanced Repair', fee: 200, items: ['Motherboard', 'Daughterboard', 'Other major parts, as assessed by KPS'],
        note: 'A combination of Basic and Standard Repair items in the same incident may be billed at this tier.' },
   4: { name: 'Device Replacement', fee: 400, items: ['Device lost', 'Device stolen (police report required)', 'Damage beyond repair', 'Device not returned at check-in'], note: '' }
 };
@@ -128,9 +128,9 @@ var SPECIALS_ = ['Device lost', 'Device stolen (police report required)', 'Damag
 
 // Suggests a tier from the parts picked. The form uses this exact function in the browser (see pageHtml_).
 function classifyTier_(parts, special) {
-  var major = /motherboard|logic board|mainboard|system board/i;
-  var std = /screen|lcd|display|digitizer|palm ?rest|hinge|body damage|top cover|bottom cover|chassis|housing/i;
-  var basic = /keyboard|track ?pad|touch ?pad|bezel|battery|camera|webcam|charger|adapter|power cord|case/i;
+  var major = /motherboard|daughter ?board|logic board|mainboard|system board/i;
+  var std = /screen|lcd|display|digitizer|camera|webcam|palm ?rest|hinge|body damage|top cover|bottom cover|chassis|housing/i;
+  var basic = /keyboard|track ?pad|touch ?pad|bezel|battery|charger|adapter|power cord|case/i;
   var nM = 0, nS = 0, nB = 0, other = [];
   (parts || []).forEach(function (p) {
     p = String(p);
