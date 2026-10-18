@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendar - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Calendar</h1>
+    <p class="sub">The Kalispell Public Schools calendar<%= isMgr ? ' with who is scheduled at each school. Click a day to see every person.' : ' with your clock-in hours.' %> <a href="/schedule">Show the list view</a>.</p>
+
+    <div class="panel">
+        <div class="calnav">
+            <a class="btn btn-ghost" href="/schedule/calendar?month=<%= prev %>" aria-label="Previous month">&larr; Prev</a>
+            <h3><%= title %></h3>
+            <a class="btn btn-ghost" href="/schedule/calendar?month=<%= next %>" aria-label="Next month">Next &rarr;</a>
+        </div>
+        <div class="cal" role="grid" aria-label="<%= title %>">
+            <% DAYS.forEach(n => { %><div class="calh" role="columnheader"><span class="long"><%= n %></span><span class="short"><%= n.slice(0, 3) %></span></div><% }) %>
+            <% cells.forEach(c => { %>
+                <% if (!c) { %><div class="calc empty"></div><% } else { %>
+                <% const cls = 'calc' + (c.weekend ? ' wk' : '') + (!c.school && !c.weekend ? ' off' : '') + (c.early ? ' er' : '') + (c.today ? ' today' : '') + (detail && detail.date === c.date ? ' sel' : ''); %>
+                <% if (isMgr && c.school) { %>
+                <a class="<%= cls %>" href="/schedule/calendar?month=<%= month %>&amp;date=<%= c.date %>#detail" role="gridcell">
+                <% } else { %><div class="<%= cls %>" role="gridcell"><% } %>
+                    <span class="dn"><%= c.d %></span>
+                    <% if (c.label) { %><span class="tag"><%= c.label %></span><% } %>
+                    <% c.bySchool.forEach(s => { %><span class="sc"><%= s.name.replace(/ (High )?School$/, '') %> <b><%= s.n %></b></span><% }) %>
+                    <% if (c.bySchool.length) { %><span class="mini"><%= c.bySchool.reduce((a, s) => a + s.n, 0) %> people</span><% } %>
+                    <% if (c.window) { %><span class="win"><%= c.window %></span><% } %>
+                <%- isMgr && c.school ? '</a>' : '</div>' %>
+                <% } %>
+            <% }) %>
+        </div>
+        <p class="hint">Shaded days have no school. "Early release" days use the shorter hours. Numbers are how many people are scheduled at each school that day.</p>
+    </div>
+
+    <% if (detail) { %>
+    <div class="panel" id="detail">
+        <h3><%= detail.day %>, <%= detail.date %><%= detail.early ? ' · Early release' : '' %><%= detail.note ? ' · ' + detail.note : '' %></h3>
+        <% if (!detail.groups.length) { %><p class="hint">No accounts to show.</p><% } %>
+        <% detail.groups.forEach(g => { %>
+            <h4 class="permhead"><%= g.name %> <span class="dim">(<%= g.rows.length %>)</span></h4>
+            <div class="table-wrap"><table>
+                <thead><tr><th>Person</th><th>Clock in between</th></tr></thead>
+                <tbody><% g.rows.forEach(r => { %><tr><td><%= r.name %><%= r.manager ? ' (manager)' : '' %></td><td><%= r.window %></td></tr><% }) %></tbody>
+            </table></div>
+        <% }) %>
+    </div>
+    <% } %>
+</body>
+</html>

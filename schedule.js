@@ -139,6 +139,76 @@ async function upcoming(db, employeeId, days = 14, now = new Date()) {
     return out;
 }
 
+
+// ---------- Month calendar ----------
+const HIDDEN_NAME = /^\s*john\s+doe\b/i;     // placeholder/test accounts never appear on the calendar
+// Accounts to show for a viewer: every employee and manager at the schools they can see, never district administrators.
+async function calendarPeople(db, session) {
+    const scope = require('./scope');
+    const all = (await scope.manageableAccounts(db, session)).filter(a => !a.is_district && !HIDDEN_NAME.test(a.name || ''));
+    const viewerSites = session.district === 1 ? null : new Set((await db.all('SELECT DISTINCT site_id FROM scopes WHERE employee_id = ?', [session.userID])).map(r => r.site_id));
+    const people = [];
+    for (const a of all) {
+        const sites = await db.all(a.is_admin
+            ? 'SELECT DISTINCT s.id, s.name FROM scopes x JOIN sites s ON s.id = x.site_id WHERE x.employee_id = ?'
+            : 'SELECT DISTINCT s.id, s.name FROM memberships x JOIN sites s ON s.id = x.site_id WHERE x.employee_id = ?', [a.id]);
+        const shown = viewerSites ? sites.filter(st => viewerSites.has(st.id)) : sites;
+        const asg = await getAssignment(db, a.id);
+        let cfgSites = sites;
+        const m = /^site:(\d+)$/.exec(asg);
+        if (m) cfgSites = await db.all('SELECT id, name FROM sites WHERE id = ?', [parseInt(m[1], 10)]);
+        const cfgs = [];
+        if (asg !== 'none') for (const st of cfgSites) { const c = await getSiteConfig(db, st); if (c && c.mode !== 'off') cfgs.push(c); }
+        if (viewerSites && !shown.length) continue;
+        people.push({ id: a.id, name: a.name, manager: !!a.is_admin, sites: shown.length ? shown : [{ id: 0, name: 'No school assigned' }], cfgs });
+    }
+    return people;
+}
+const spanOf = ws => ws.length ? [ws.map(w => w[0]).sort()[0], ws.map(w => w[1]).sort().slice(-1)[0]] : null;
+const short = w => w ? fmt12(w[0]).replace(':00', '').replace(' AM', 'a').replace(' PM', 'p') + '–' + fmt12(w[1]).replace(':00', '').replace(' AM', 'a').replace(' PM', 'p') : '';
+
+async function monthView(db, session, monthStr, dateStr) {
+    await ensureCalendar(db);
+    const nowParts = localParts();
+    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(monthStr || '') ? monthStr : nowParts.date.slice(0, 7);
+    const [Y, M] = month.split('-').map(Number);
+    const first = new Date(Date.UTC(Y, M - 1, 1)), nDays = new Date(Date.UTC(Y, M, 0)).getUTCDate();
+    const cal = await calendarMap(db), year = await schoolYear(db), extra = await noSchoolDays(db);
+    const isMgr = session.admin === 1;
+    const people = isMgr ? await calendarPeople(db, session) : null;
+    const mine = isMgr ? null : await configsFor(db, session.userID);
+    const cells = [];
+    for (let i = 0; i < first.getUTCDay(); i++) cells.push(null);
+    for (let d = 1; d <= nDays; d++) {
+        const date = month + '-' + String(d).padStart(2, '0'), dow = new Date(Date.UTC(Y, M - 1, d)).getUTCDay();
+        const info = dayInfo(date, dow, cal, year, extra);
+        const c = { date, d, dow, school: info.school, early: !!info.early, note: info.note || '', label: info.school ? (info.early ? 'Early release' : '') : (info.kind === 'WEEKEND' ? '' : (info.note || KIND_NAMES[info.kind] || 'No school')), today: date === nowParts.date, weekend: dow === 0 || dow === 6, bySchool: [], window: '' };
+        if (info.school) {
+            if (isMgr) {
+                const counts = new Map();
+                for (const p of people) { const ws = p.cfgs.map(cf => windowFor(cf, dow, info)).filter(Boolean); if (!ws.length) continue; for (const st of p.sites) counts.set(st.name, (counts.get(st.name) || 0) + 1); }
+                c.bySchool = [...counts].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name));
+            } else { const w = spanOf(mine.map(x => windowFor(x.cfg, dow, info)).filter(Boolean)); c.window = short(w); }
+        }
+        cells.push(c);
+    }
+    while (cells.length % 7) cells.push(null);
+    const prev = new Date(Date.UTC(Y, M - 2, 1)).toISOString().slice(0, 7), next = new Date(Date.UTC(Y, M, 1)).toISOString().slice(0, 7);
+    let detail = null;
+    if (isMgr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr || '') && dateStr.slice(0, 7) === month) {
+        const dow = new Date(dateStr + 'T12:00:00Z').getUTCDay(), info = dayInfo(dateStr, dow, cal, year, extra);
+        const groups = new Map();
+        for (const p of people) {
+            const ws = info.school ? p.cfgs.map(cf => windowFor(cf, dow, info)).filter(Boolean) : [];
+            const row = { name: p.name, manager: p.manager, window: ws.length ? windowText(spanOf(ws)) : (info.school ? 'Not scheduled' : 'Off') };
+            for (const st of p.sites) { if (!groups.has(st.name)) groups.set(st.name, []); groups.get(st.name).push(row); }
+        }
+        detail = { date: dateStr, day: DAYS[dow], school: info.school, early: !!info.early, note: info.note || (info.school ? '' : (info.kind === 'WEEKEND' ? 'Weekend' : KIND_NAMES[info.kind] || '')), groups: [...groups].sort((a, b) => a[0].localeCompare(b[0])).map(([name, rows]) => ({ name, rows: rows.sort((a, b) => (b.manager - a.manager) || a.name.localeCompare(b.name)) })) };
+    }
+    const title = new Date(Date.UTC(Y, M - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    return { month, title, prev, next, cells, isMgr, detail, DAYS };
+}
+
 async function audit(db, session, targetId, targetName, action, details) {
     await db.run('INSERT INTO audit_log (actor_id, actor_name, target_id, target_name, action, details, reason) VALUES (?,?,?,?,?,?,?)',
         [session ? session.userID : null, session ? session.name || '' : 'System', targetId || null, targetName || '', action, details, '']);
@@ -255,7 +325,7 @@ function mount(app, getDb, wrap) {
             const q = String((req.query || {}).date || '');
             const t = localParts().date;
             rosterDay = /^\d{4}-\d{2}-\d{2}$/.test(q) && !isNaN(Date.parse(q)) ? q : t;
-            const people = (await scope.manageableAccounts(db, req.session)).filter(a => !a.is_admin && !a.is_district);
+            const people = (await scope.manageableAccounts(db, req.session)).filter(a => !a.is_admin && !a.is_district && !HIDDEN_NAME.test(a.name || ''));
             const cal = await calendarMap(db), year = await schoolYear(db), extra = await noSchoolDays(db);
             const dow = new Date(rosterDay + 'T12:00:00Z').getUTCDay(), info = dayInfo(rosterDay, dow, cal, year, extra);
             roster = { info, rows: [] };
@@ -267,6 +337,12 @@ function mount(app, getDb, wrap) {
             }
         }
         res.render('schedule', { days, siteNames: sites.map(s => s.name), assignment: asg, roster, rosterDay, isMgr: req.session.admin === 1 });
+    }));
+
+    app.get('/schedule/calendar', wrap(async (req, res) => {
+        if (!req.session.userID) return res.redirect('/');
+        const q = req.query || {};
+        res.render('schedule_calendar', await monthView(getDb(), req.session, String(q.month || ''), String(q.date || '')));
     }));
 
     // A manager lets one account clock in at any time today.
@@ -283,4 +359,4 @@ function mount(app, getDb, wrap) {
 }
 
 module.exports = mount;
-Object.assign(module.exports, { ensureCalendar, calendarMap, dayInfo, upcoming, getAssignment, setAssignment, configsFor, KIND_NAMES, ensure, check, gate, getSiteConfig, saveSiteConfig, saveNoSchool, noSchoolDays, localParts, presetFor, PRESETS, DAYS });
+Object.assign(module.exports, { monthView, calendarPeople, ensureCalendar, calendarMap, dayInfo, upcoming, getAssignment, setAssignment, configsFor, KIND_NAMES, ensure, check, gate, getSiteConfig, saveSiteConfig, saveNoSchool, noSchoolDays, localParts, presetFor, PRESETS, DAYS });

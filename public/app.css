@@ -360,3 +360,28 @@ tr.today td{background:#f0f7f2}
   html.navmin .side li a svg { width: 18px; height: 18px; }
 }
 @media (max-width: 900px) { .side .sidemin { display: none; } .side .brand { padding-right: 0; } }
+
+/* ---------- Month calendar ---------- */
+.calnav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.calnav h3 { margin: 0; }
+.calnav .btn { margin: 0; }
+.cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calh { font-size: 12px; color: var(--muted); text-align: center; padding: 4px 0; }
+.calh .short { display: none; }
+.calc { min-height: 92px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 7px; display: flex; flex-direction: column; gap: 3px; color: var(--text); text-decoration: none; overflow: hidden; }
+.calc.empty { background: transparent; border-color: transparent; }
+.calc.wk, .calc.off { background: var(--canvas); color: var(--muted); }
+.calc.off { background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgba(128,128,128,.08) 6px 12px); }
+.calc.er { border-color: var(--accent); }
+.calc.today { box-shadow: 0 0 0 2px var(--accent) inset; }
+.calc.sel { background: var(--accent-soft); }
+a.calc:hover { border-color: var(--accent); }
+.calc .dn { font-weight: 600; font-size: 13px; }
+.calc .tag { font-size: 11px; line-height: 1.2; color: var(--accent); font-weight: 600; }
+.calc.off .tag { color: var(--muted); }
+.calc .sc { font-size: 11px; line-height: 1.25; color: var(--muted); display: flex; justify-content: space-between; gap: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calc .sc b { color: var(--text); font-weight: 600; }
+.calc .win { font-size: 11px; color: var(--muted); }
+@media (max-width: 700px) { .calc { min-height: 64px; padding: 4px; } .calh .long { display: none; } .calh .short { display: inline; } .calc .sc, .calc .win { font-size: 10px; } .calc .tag { font-size: 9px; } }
+.calc .mini { display: none; font-size: 10px; color: var(--muted); }
+@media (max-width: 700px) { .calc .sc { display: none; } .calc .mini { display: block; } }

@@ -86,7 +86,8 @@ function navHtml(nav, theme) {
         (nav.admin || nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
         item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') +
-        item('/schedule', 'clock', 'My schedule', starts('/schedule')) +
+        item('/schedule', 'clock', 'My schedule', path === '/schedule') +
+        item('/schedule/calendar', 'list', 'Calendar', starts('/schedule/calendar')) +
         item('/profile', 'users', 'My profile', path === '/profile') + '</ul>';
 
     if (nav.resources) {
