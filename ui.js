@@ -85,6 +85,7 @@ function navHtml(nav, theme) {
         (nav.admin || nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
         item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') +
+        item('/schedule', 'clock', 'My schedule', starts('/schedule')) +
         item('/profile', 'users', 'My profile', path === '/profile') + '</ul>';
 
     if (nav.resources) {
@@ -117,6 +118,7 @@ function navHtml(nav, theme) {
             item('/admin/requests', 'inbox', 'Pending requests', starts('/admin/requests')) +
             item('/admin/accounts', 'users', 'Accounts', starts('/admin/accounts')) +
             item('/admin/shifts', 'edit', 'Edit timecards', starts('/admin/shifts')) +
+            item('/admin/schedules', 'clock', 'Clock-in schedules', starts('/admin/schedules')) +
             item('/admin/users/reset', 'key', 'Reset password', path === '/admin/users/reset') + '</ul>';
     }
     if (nav.district) {

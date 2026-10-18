@@ -83,6 +83,21 @@
             </div>
             <% } %>
 
+            <% if (sched) { %>
+            <form class="panel" action="/admin/accounts/schedule" method="POST">
+                <h3>Clock-in schedule</h3>
+                <input type="hidden" name="id" value="<%= emp.id %>">
+                <label for="sched">Follows</label>
+                <select id="sched" name="schedule">
+                    <option value="" <%= sched.value === '' ? 'selected' : '' %>>Their own school's schedule<%= sched.own ? ' (' + sched.own + ')' : '' %></option>
+                    <% sched.sites.forEach(s => { %><option value="site:<%= s.id %>" <%= sched.value === 'site:' + s.id ? 'selected' : '' %>><%= s.name %> schedule</option><% }) %>
+                    <option value="none" <%= sched.value === 'none' ? 'selected' : '' %>>No schedule (never restricted)</option>
+                </select>
+                <p class="hint" style="margin-top:6px;">Decides which hours this person is expected to clock in during. The times themselves are set on Clock-in schedules. It also controls what shows on their Schedule tab.</p>
+                <button type="submit">Save schedule</button>
+            </form>
+            <% } %>
+
             <form class="panel" action="/admin/accounts/permissions" method="POST">
                 <h3>Permissions</h3>
                 <input type="hidden" name="id" value="<%= emp.id %>">

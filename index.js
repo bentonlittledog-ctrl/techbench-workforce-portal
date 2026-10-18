@@ -332,7 +332,15 @@ app.post('/punch', wrap(async (req, res) => {
         return res.redirect('/dashboard');
     }
 
+    // Clock-ins are checked against the site's schedule (flag or block); clock-outs never are.
+    let punchNote = null;
+    if (action === 'CLOCK_IN') {
+        const g = await require('./schedule').gate(db, req.session).catch(() => ({ allow: true }));
+        if (!g.allow) { req.session.error = g.message; return res.redirect('/dashboard'); }
+        punchNote = g.message || null;
+    }
     await db.run('INSERT INTO logs (employee_id, action) VALUES (?, ?)', [req.session.userID, action]);
+    if (punchNote) req.session.error = punchNote;
     res.redirect('/dashboard');
 }));
 
@@ -422,6 +430,7 @@ require('./benchpickup')(app, () => db, wrap);
 require('./ticketimport')(app, () => db, wrap, express);
 require('./profile')(app, () => db, wrap);
 require('./autoclock')(app, () => db, wrap);
+require('./schedule')(app, () => db, wrap);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)

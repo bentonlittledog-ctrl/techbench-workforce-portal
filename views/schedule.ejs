@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My schedule - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>My schedule</h1>
+    <p class="sub">The next three weeks, from the Kalispell Public Schools calendar<%= siteNames.length ? ' and the ' + siteNames.join(' / ') + ' schedule' : '' %>. Times are when you can clock in.</p>
+
+    <div class="panel">
+        <div class="table-wrap"><table>
+            <thead><tr><th>Day</th><th>What kind of day</th><th>Clock in between</th></tr></thead>
+            <tbody>
+            <% days.forEach(d => { %>
+                <tr<%= d.today ? ' class="today"' : '' %>>
+                    <td><strong><%= d.day %></strong> <span class="dim"><%= d.date.slice(5).replace('-', '/') %></span><%= d.today ? ' (today)' : '' %></td>
+                    <td><% if (!d.school) { %><span class="dim"><%= d.label %></span><% } else if (d.early) { %><span class="badge"><%= d.label %></span><% } else { %><%= d.label %><% } %></td>
+                    <td><%= d.school ? (d.window || 'Any time') : 'No school' %></td>
+                </tr>
+            <% }) %>
+            </tbody>
+        </table></div>
+        <p class="hint">Your schedule is built automatically from your account, so it updates on its own if your school or assignment changes. If you need to work outside these hours, ask your manager.</p>
+    </div>
+
+    <% if (isMgr && roster) { %>
+    <div class="panel">
+        <h3>Who is scheduled</h3>
+        <form action="/schedule" method="GET" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+            <div><label for="rd">Day</label><input type="date" id="rd" name="date" value="<%= rosterDay %>"></div>
+            <button type="submit" class="btn-ghost" style="margin:0">Show</button>
+        </form>
+        <p class="hint"><%= roster.info.school ? (roster.info.early ? 'Early release day.' : 'Regular school day.') : (roster.info.note || (roster.info.kind === 'WEEKEND' ? 'Weekend.' : 'No school.')) %></p>
+        <% if (!roster.rows.length) { %><p class="hint">No student accounts in your areas.</p><% } else { %>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Person</th><th>School</th><th>Clock in between</th></tr></thead>
+            <tbody><% roster.rows.forEach(r => { %><tr><td><%= r.name %></td><td><%= r.site %></td><td><%= r.window %></td></tr><% }) %></tbody>
+        </table></div>
+        <% } %>
+    </div>
+    <% } %>
+</body>
+</html>

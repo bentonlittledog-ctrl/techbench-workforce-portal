@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clock-in schedules - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Clock-in schedules</h1>
+    <p class="sub">When students are expected to clock in. Clocking out is never blocked, and managers are never restricted. Times are Mountain time.</p>
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <% if (isDistrict) { %>
+    <% rows.forEach(r => { const c = r.cfg; %>
+    <form class="panel" action="/admin/schedules" method="POST">
+        <h3><%= r.site.name %></h3>
+        <input type="hidden" name="site_id" value="<%= r.site.id %>">
+        <% if (!c) { %><p class="hint">No schedule yet, so everyone at this site can clock in at any time. Fill in the times below to start one.</p>
+        <% } else if (c.preset) { %><p class="hint">Starting with the built-in bell schedule for this school. Press Save to keep it or change it first.</p><% } %>
+        <label for="mode<%= r.site.id %>">What happens outside the schedule</label>
+        <select id="mode<%= r.site.id %>" name="mode">
+            <% const cur = c ? c.mode : 'off'; %>
+            <option value="off" <%= cur === 'off' ? 'selected' : '' %>>Off (no checking)</option>
+            <option value="flag" <%= cur === 'flag' ? 'selected' : '' %>>Flag it for managers (lets the punch through)</option>
+            <option value="block" <%= cur === 'block' ? 'selected' : '' %>>Block the clock-in</option>
+        </select>
+        <label for="grace<%= r.site.id %>">Grace period (minutes before and after)</label>
+        <input type="number" id="grace<%= r.site.id %>" name="grace" min="0" max="120" value="<%= c ? c.grace : 10 %>">
+        <div class="table-wrap"><table>
+            <thead><tr><th>Day</th><th>Earliest</th><th>Latest</th></tr></thead>
+            <tbody>
+            <% [1,2,3,4,5,6,0].forEach(d => { const w = c && c.days[d] ? c.days[d] : ['','']; %>
+                <tr><td><%= DAYS[d] %></td>
+                <td><input type="time" name="start_<%= d %>" value="<%= w[0] %>" aria-label="<%= DAYS[d] %> earliest clock-in"></td>
+                <td><input type="time" name="end_<%= d %>" value="<%= w[1] %>" aria-label="<%= DAYS[d] %> latest clock-in"></td></tr>
+            <% }) %>
+            </tbody>
+        </table></div>
+        <p class="hint">Earliest and latest are the start of before-school and the end of after-school. Leave a day blank if nobody should clock in then.</p>
+        <label>Early release days</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input type="time" name="er_start" value="<%= c && c.er ? c.er[0] : '' %>" aria-label="Early release earliest clock-in" style="max-width:180px">
+            <input type="time" name="er_end" value="<%= c && c.er ? c.er[1] : '' %>" aria-label="Early release latest clock-in" style="max-width:180px">
+        </div>
+        <p class="hint">Used on the early-release days marked on the district calendar below. Leave blank to use the normal times.</p>
+        <button type="submit">Save <%= r.site.name %></button>
+    </form>
+    <% }) %>
+
+    <div class="panel">
+        <h3>District calendar</h3>
+        <p class="hint">Loaded from the 2026-2027 Kalispell Public Schools calendar. Early-release days use the early-release times above, and no-school days are not checked. Change a day here if the calendar changes.</p>
+        <% if (!calendar.length) { %><p class="hint">No upcoming special days.</p><% } else { %>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Date</th><th>Kind</th><th>Note</th><th></th></tr></thead>
+            <tbody><% calendar.forEach(d => { %>
+                <tr><td><%= d.date %></td><td><%= KIND_NAMES[d.kind] || d.kind %></td><td><%= d.note %></td>
+                <td><form action="/admin/schedules/calendar" method="POST" style="display:inline"><input type="hidden" name="date" value="<%= d.date %>"><input type="hidden" name="remove" value="1"><button type="submit" class="btn-ghost" style="margin:0">Remove</button></form></td></tr>
+            <% }) %></tbody>
+        </table></div>
+        <% } %>
+        <form action="/admin/schedules/calendar" method="POST" style="margin-top:14px">
+            <label for="cd">Add or change a day</label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+                <input type="date" id="cd" name="date" required style="max-width:190px">
+                <select name="kind" aria-label="Kind of day" style="max-width:240px"><% Object.keys(KIND_NAMES).forEach(k => { %><option value="<%= k %>"><%= KIND_NAMES[k] %></option><% }) %></select>
+                <input type="text" name="note" maxlength="60" placeholder="Note (optional)" style="max-width:240px">
+                <button type="submit" style="margin:0">Save day</button>
+            </div>
+        </form>
+    </div>
+
+    <form class="panel" action="/admin/schedules/noschool" method="POST">
+        <h3>Extra no-school days</h3>
+        <p class="hint">Schedules are not checked on these dates (holidays, teacher days, snow days). One date per line, like 2026-11-26.</p>
+        <textarea name="dates" rows="5" aria-label="No-school dates"><%= noSchool %></textarea>
+        <button type="submit">Save dates</button>
+    </form>
+    <% } %>
+
+    <div class="panel">
+        <h3>Allow someone today</h3>
+        <p class="hint">Lets one account clock in at any time on <%= today %>, for example a student staying late to finish a repair. It ends tonight on its own.</p>
+        <% if (!people.length) { %><p class="hint">No accounts to show.</p><% } else { %>
+        <div class="table-wrap"><table>
+            <tbody><% people.forEach(p => { %>
+                <tr><td><%= p.name %></td><td>
+                    <form action="/admin/schedules/allow" method="POST" style="display:inline">
+                        <input type="hidden" name="employee_id" value="<%= p.id %>">
+                        <% if (p.allowed) { %><input type="hidden" name="undo" value="1"><button type="submit" class="btn-ghost">Remove exception</button>
+                        <% } else { %><button type="submit" class="btn-ghost">Allow today</button><% } %>
+                    </form></td></tr>
+            <% }) %></tbody>
+        </table></div>
+        <% } %>
+    </div>
+
+    <div class="panel">
+        <h3>Recent outside-schedule clock-ins</h3>
+        <% if (!recent.length) { %><p class="hint">Nothing yet.</p><% } else { %>
+        <div class="table-wrap"><table>
+            <thead><tr><th>When</th><th>Person</th><th>What happened</th></tr></thead>
+            <tbody><% recent.forEach(r => { %><tr><td><%= r.at %></td><td><%= r.target_name %></td><td><%= r.action === 'PUNCH_BLOCKED' ? 'Blocked. ' : 'Flagged. ' %><%= r.details %></td></tr><% }) %></tbody>
+        </table></div>
+        <% } %>
+    </div>
+</body>
+</html>
