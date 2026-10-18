@@ -72,15 +72,16 @@ function navHtml(nav, theme) {
     theme = theme || THEMES.district;
     const path = nav.path || '';
     const item = (href, icon, label, active) =>
-        '<li><a href="' + href + '"' + (active ? ' class="active" aria-current="page"' : '') + '>' + svg(icon) + label + '</a></li>';
+        '<li><a href="' + href + '" title="' + label.replace(/&amp;/g, '&') + '"' + (active ? ' class="active" aria-current="page"' : '') + '>' + svg(icon) + label + '</a></li>';
     const starts = p => path.indexOf(p) === 0;
 
     let h = '<aside class="side"><a class="brand" href="/dashboard">' +
         (theme.badge ? '<span class="mark logo"><img src="' + theme.badge + '" alt=""></span>' : '<span class="mark">' + svg('clock') + '</span>') +
         '<span class="bt">Timecard Portal<small>' + esc(theme.key === 'district' ? 'District office' : theme.name) + '</small></span></a>' +
+        '<button type="button" class="sidemin" aria-label="Minimize menu" title="Minimize or expand the menu"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>' +
         '<input type="checkbox" id="navToggle" aria-label="Menu"><label for="navToggle" class="burger">Menu</label><nav>';
 
-    h += '<div class="grp">My time</div><ul>' +
+    h += '<button type="button" class="grp" data-grp="mytime" aria-expanded="true">My time</button><ul>' +
         item('/dashboard', 'home', 'Dashboard', path === '/dashboard') +
         (nav.admin || nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
@@ -89,13 +90,13 @@ function navHtml(nav, theme) {
         item('/profile', 'users', 'My profile', path === '/profile') + '</ul>';
 
     if (nav.resources) {
-        h += '<div class="grp">Resources</div><ul>' +
+        h += '<button type="button" class="grp" data-grp="resources" aria-expanded="true">Resources</button><ul>' +
             item('/learn', 'book', 'Learn', starts('/learn')) +
             item('/links', 'link', 'Quick links', starts('/links')) + '</ul>';
     }
 
     if (nav.bench) {
-        h += '<div class="grp">Tech Bench</div><ul>' +
+        h += '<button type="button" class="grp" data-grp="techbench" aria-expanded="true">Tech Bench</button><ul>' +
             item('/bench/queue', 'tool', 'Repair queue', starts('/bench/queue') || starts('/bench/ticket')) +
             item('/bench/workload', 'users', 'Workload', starts('/bench/workload')) +
             item('/bench/dashboard', 'chart', 'Bench stats', starts('/bench/dashboard')) +
@@ -114,7 +115,7 @@ function navHtml(nav, theme) {
     }
 
     if (nav.admin) {
-        h += '<div class="grp">Manage</div><ul>' +
+        h += '<button type="button" class="grp" data-grp="manage" aria-expanded="true">Manage</button><ul>' +
             item('/admin/requests', 'inbox', 'Pending requests', starts('/admin/requests')) +
             item('/admin/accounts', 'users', 'Accounts', starts('/admin/accounts')) +
             item('/admin/shifts', 'edit', 'Edit timecards', starts('/admin/shifts')) +
@@ -122,7 +123,7 @@ function navHtml(nav, theme) {
             item('/admin/users/reset', 'key', 'Reset password', path === '/admin/users/reset') + '</ul>';
     }
     if (nav.district) {
-        h += '<div class="grp">District</div><ul>' +
+        h += '<button type="button" class="grp" data-grp="district" aria-expanded="true">District</button><ul>' +
             item('/admin/org', 'org', 'Sites &amp; assignments', path === '/admin/org') +
             item('/admin/audit', 'log', 'Audit log', path === '/admin/audit') +
             item('/admin/autoclock', 'clock', 'Auto clock-out', path === '/admin/autoclock') +
@@ -139,6 +140,6 @@ function navHtml(nav, theme) {
 const headTags =
     '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">' +
-    '<link rel="stylesheet" href="/app.css">';
+    '<link rel="stylesheet" href="/app.css"><script src="/nav.js"></script>';
 
 module.exports = { navHtml, headTags, themeStyle, themeFor, themeKeyForHost, THEMES, SITE_THEME, esc };

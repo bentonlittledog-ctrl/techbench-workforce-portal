@@ -337,3 +337,26 @@ a.card:hover { border-color: var(--accent); }
 button.cellbtn,.skilltbl button.cellbtn{width:30px;height:30px;min-height:0;padding:0;margin:0;background:transparent;color:var(--accent,#12843f);border:1px solid var(--line,#cbd5e1);border-radius:8px}
 button.cellbtn.on,span.cellbtn.on{background:var(--accent-soft,#dcfce7);border-color:var(--accent,#12843f)}
 tr.today td{background:#f0f7f2}
+
+/* ---------- Collapsible menu ---------- */
+.side .grp { min-height: 0; display: flex; align-items: center; justify-content: space-between; width: calc(100% - 16px); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; font: inherit; font-size: 12px; color: #7d8ca6; letter-spacing: 0.02em; }
+.side .grp:hover { color: #fff; }
+.side .grp::after { content: ''; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(45deg); transition: transform .15s; margin-top: -3px; }
+.side .grp.folded::after { transform: rotate(-45deg); margin-top: 0; }
+.side ul[hidden] { display: none; }
+.side .sidemin { min-height: 0; position: absolute; top: 24px; right: 10px; width: 26px; height: 26px; padding: 0; margin: 0; display: grid; place-items: center; background: transparent; border: 1px solid #2a3b5a; border-radius: 6px; color: #9fb0cc; cursor: pointer; }
+.side .sidemin:hover { color: #fff; background: var(--ink-2); }
+.side .sidemin svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.side .brand { padding-right: 36px; }
+@media (min-width: 901px) {
+  html.navmin { --side: 68px; }
+  html.navmin .side { padding: 20px 8px; overflow-x: hidden; }
+  html.navmin .side .brand { padding: 4px 0 14px; justify-content: center; }
+  html.navmin .side .brand .bt, html.navmin .side .user { display: none; }
+  html.navmin .side .sidemin { position: static; margin: 0 auto 10px; transform: rotate(180deg); }
+  html.navmin .side .grp { visibility: hidden; height: 10px; margin: 6px 0 0; }
+  html.navmin .side ul[hidden] { display: block; }
+  html.navmin .side li a { font-size: 0; justify-content: center; gap: 0; padding: 10px 0; border-left-width: 0; }
+  html.navmin .side li a svg { width: 18px; height: 18px; }
+}
+@media (max-width: 900px) { .side .sidemin { display: none; } .side .brand { padding-right: 0; } }
