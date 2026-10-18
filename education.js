@@ -67,6 +67,7 @@ function renderBody(src) {
 
 // Repair-guide PDFs that ship with the app (learn-pdfs folder). A guide can link straight to one section:
 //   /learn/pdf/NL73_Repair_Guide.pdf#nameddest=R11   or   ...#page=21
+const certs = require('./certs');
 const PDF_NAME = /^[A-Za-z0-9_-]+\.pdf$/;
 const PDF_LINK = /^\/learn\/pdf\/([A-Za-z0-9_-]+\.pdf)(#(?:nameddest=[A-Za-z0-9_]{1,20}|page=\d{1,4}))?$/;
 const pdfLink = s => { const m = String(s || '').match(PDF_LINK); return m ? m[0] : null; };
@@ -204,6 +205,13 @@ const PDF_SECTIONS = {
     }
 };
 
+// Repairs on the district's Tier 3 list (and the heat sink work done with them) need a Senior Repair Specialist.
+const SENIOR_TOPICS = ['Motherboard Replacement', 'Daughterboard Replacement', 'Heatsink Replacement'];
+// Device-specific lead-tech repairs (glued tablet: everything behind the screen).
+const SENIOR_BY_DEVICE = {
+    'Lenovo Chromebook Duet EDU G2': ['LCD Screen Repair', 'LCD Cable Repair', 'Top Assembly', 'Battery Replacement', 'Camera Board Replacement', 'Camera Cable Replacement']
+};
+
 // Web address typed by an admin: '' if blank, null if not a usable http(s) address.
 // Also accepts a link to one of the app's own repair-guide PDFs (see PDF_LINK).
 function cleanUrl(s) {
@@ -314,6 +322,13 @@ function mount(app, getDb, wrap, express) {
                         if (tbId) await db.run('UPDATE ' + t + ' SET program_id = ?', [tbId]);
                     }
                 }
+                // Which repair certification a guide needs ('' = everyone). See certs.js.
+                if (!(await db.all('PRAGMA table_info(guides)')).some(c => c.name === 'min_cert')) await db.exec("ALTER TABLE guides ADD COLUMN min_cert TEXT NOT NULL DEFAULT ''");
+                await db.exec(`CREATE TABLE IF NOT EXISTS guide_reports (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT, guide_id INTEGER NOT NULL, employee_id INTEGER, name TEXT DEFAULT '',
+                      message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                      resolved_by TEXT DEFAULT '', resolved_at TEXT);
+                    CREATE INDEX IF NOT EXISTS idx_guide_reports_status ON guide_reports(status);`);
                 const n = await db.get('SELECT COUNT(*) AS n FROM devices');
                 if (!n.n) for (const name of DEVICES) await db.run('INSERT OR IGNORE INTO devices (name, brand, program_id) VALUES (?, ?, ?)', [name, brandOf(name), tbId]);
                 const l = await db.get('SELECT COUNT(*) AS n FROM quick_links');
@@ -348,6 +363,17 @@ function mount(app, getDb, wrap, express) {
                         }
                     }
                     await db.run('INSERT INTO learn_seeds (key) VALUES (?)', [seedKey]);
+                }
+                // One time only: imported Tier 3 guides (system board, daughterboard, heat sink) and the Duet's lead-tech repairs
+                // need a Senior Repair Specialist. Pages an admin has edited since the import are left alone.
+                if (!(await db.get(`SELECT 1 FROM learn_seeds WHERE key = 'cert-gates-v1'`))) {
+                    const t3 = SENIOR_TOPICS.map(() => '?').join(',');
+                    await db.run(`UPDATE guides SET min_cert = 'repair_senior' WHERE kind = 'repair' AND updated_by = 'Repair guide import' AND topic IN (${t3})`, SENIOR_TOPICS);
+                    for (const [devName, topics] of Object.entries(SENIOR_BY_DEVICE)) {
+                        await db.run(`UPDATE guides SET min_cert = 'repair_senior' WHERE kind = 'repair' AND updated_by = 'Repair guide import'
+                            AND device_id = (SELECT id FROM devices WHERE name = ?) AND topic IN (${topics.map(() => '?').join(',')})`, [devName, ...topics]);
+                    }
+                    await db.run(`INSERT INTO learn_seeds (key) VALUES ('cert-gates-v1')`);
                 }
             })().catch(err => { ready = null; throw err; });
         }
@@ -396,7 +422,8 @@ function mount(app, getDb, wrap, express) {
         const general = (await db.get(`SELECT COUNT(*) AS n FROM guides g WHERE g.kind = 'repair' AND g.device_id IS NULL AND ${vg.sql}`, vg.params)).n;
         const videos = await db.all(`SELECT g.id, g.title, g.area FROM guides g WHERE g.kind = 'video' AND ${vg.sql} ORDER BY g.area, g.title`, vg.params);
         const refs = await db.all(`SELECT g.id, g.title, g.area FROM guides g WHERE g.kind = 'reference' AND ${vg.sql} ORDER BY g.area, g.title`, vg.params);
-        res.render('learn_hub', { flash: takeFlash(req), isAdmin: isAdmin(req), q, results, brands, general, videos, refs });
+        const openReports = isAdmin(req) ? (await reportsFor(db, acc, req, 'open')).length : 0;
+        res.render('learn_hub', { flash: takeFlash(req), isAdmin: isAdmin(req), q, results, brands, general, videos, refs, openReports });
     }));
 
     // ---------- One device ----------
@@ -412,8 +439,10 @@ function mount(app, getDb, wrap, express) {
             if (!device || !sees(acc, device.program_id)) return res.redirect('/learn');
         }
         const rows = id
-            ? await db.all(`SELECT g.id, g.topic, g.title FROM guides g WHERE g.kind = 'repair' AND g.device_id = ? AND ${vg.sql} ORDER BY g.title`, [id, ...vg.params])
-            : await db.all(`SELECT g.id, g.topic, g.title FROM guides g WHERE g.kind = 'repair' AND g.device_id IS NULL AND ${vg.sql} ORDER BY g.title`, vg.params);
+            ? await db.all(`SELECT g.id, g.topic, g.title, g.min_cert FROM guides g WHERE g.kind = 'repair' AND g.device_id = ? AND ${vg.sql} ORDER BY g.title`, [id, ...vg.params])
+            : await db.all(`SELECT g.id, g.topic, g.title, g.min_cert FROM guides g WHERE g.kind = 'repair' AND g.device_id IS NULL AND ${vg.sql} ORDER BY g.title`, vg.params);
+        const rank = isAdmin(req) ? 99 : certs.repairRank(await certs.heldBy(db, req.session.userID));
+        rows.forEach(r => { const c = certs.BY_KEY[r.min_cert]; r.needs = c ? c.name : ''; r.locked = !!c && rank < c.rank; });
         const section = (label, topics) => ({
             label,
             items: topics.map(t => ({ topic: t, guides: rows.filter(r => r.topic === t) }))
@@ -438,9 +467,12 @@ function mount(app, getDb, wrap, express) {
             `SELECT g.*, d.name AS device_name, p.name AS program_name FROM guides g LEFT JOIN devices d ON d.id = g.device_id
              LEFT JOIN programs p ON p.id = g.program_id WHERE g.id = ?`, [parseInt(req.query.id, 10) || 0]);
         if (!g || !sees(acc, g.program_id)) return res.redirect('/learn');
+        const gate = certs.BY_KEY[g.min_cert];
+        const locked = !(await certs.canOpen(db, req.session, g.min_cert));
         res.render('learn_guide', {
+            needs: gate ? gate.name : '', locked, reported: req.query.reported === '1',
             flash: takeFlash(req), isAdmin: isAdmin(req) && canEditProgram(acc, req, g.program_id), g, kindName: KINDS[g.kind] || g.kind,
-            bodyHtml: renderBody(g.body), embed: embedOf(g.video_url), pdf: pdfLink(g.link_url), updated: String(g.updated_at || '').slice(0, 10)
+            bodyHtml: locked ? '' : renderBody(g.body), embed: locked ? null : embedOf(g.video_url), pdf: locked ? null : pdfLink(g.link_url), updated: String(g.updated_at || '').slice(0, 10)
         });
     }));
 
@@ -461,9 +493,10 @@ function mount(app, getDb, wrap, express) {
             const kind = KINDS[req.query.kind] ? req.query.kind : 'repair';
             const dev = devices.find(d => d.id === (parseInt(req.query.device, 10) || 0));
             const topic = HARDWARE.concat(SOFTWARE).includes(req.query.topic) ? req.query.topic : '';
-            g = { id: 0, kind, device_id: dev ? dev.id : null, program_id: dev ? dev.program_id : (progs[0] ? progs[0].id : null), topic, area: '', title: topic, body: '', video_url: '', link_url: '' };
+            g = { id: 0, kind, device_id: dev ? dev.id : null, program_id: dev ? dev.program_id : (progs[0] ? progs[0].id : null), topic, area: '', title: topic, body: '', video_url: '', link_url: '',
+                min_cert: SENIOR_TOPICS.includes(topic) ? 'repair_senior' : '' };
         }
-        res.render('learn_edit', { flash: takeFlash(req), g, devices, progs, canEveryone: req.session.district === 1, HARDWARE, SOFTWARE, AREAS, KINDS, isNew: !id });
+        res.render('learn_edit', { flash: takeFlash(req), g, devices, progs, canEveryone: req.session.district === 1, HARDWARE, SOFTWARE, AREAS, KINDS, isNew: !id, gates: certs.REPAIR });
     }));
 
     app.post('/learn/save', wrap(async (req, res) => {
@@ -511,15 +544,16 @@ function mount(app, getDb, wrap, express) {
         if (kind === 'reference' && !body.trim() && !link) return fail('Add some text or a link to the reference.');
         if (kind === 'repair' && !body.trim() && !video && !link) return fail('Add the steps, a video, or a link.');
 
+        const minCert = certs.cleanGate(b.min_cert);
         let gid = id;
         if (id) {
             await db.run(
-                `UPDATE guides SET kind=?, device_id=?, program_id=?, topic=?, area=?, title=?, body=?, video_url=?, link_url=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-                [kind, deviceId, programId, topic, area, title, body, video, link, req.session.name || '', id]);
+                `UPDATE guides SET kind=?, device_id=?, program_id=?, topic=?, area=?, title=?, body=?, video_url=?, link_url=?, min_cert=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+                [kind, deviceId, programId, topic, area, title, body, video, link, minCert, req.session.name || '', id]);
         } else {
             const r = await db.run(
-                `INSERT INTO guides (kind, device_id, program_id, topic, area, title, body, video_url, link_url, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?)`,
-                [kind, deviceId, programId, topic, area, title, body, video, link, req.session.name || '']);
+                `INSERT INTO guides (kind, device_id, program_id, topic, area, title, body, video_url, link_url, min_cert, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                [kind, deviceId, programId, topic, area, title, body, video, link, minCert, req.session.name || '']);
             gid = r.lastID;
         }
         flash(req, 'Saved.');
@@ -533,10 +567,52 @@ function mount(app, getDb, wrap, express) {
         const g = await db.get('SELECT id, kind, device_id, program_id FROM guides WHERE id = ?', [parseInt(req.body.id, 10) || 0]);
         if (g && canEditProgram(acc, req, g.program_id)) {
             await db.run('DELETE FROM guides WHERE id = ?', [g.id]);
+            await db.run('DELETE FROM guide_reports WHERE guide_id = ?', [g.id]);
             flash(req, 'Deleted.');
             return res.redirect(g.kind === 'repair' ? '/learn/device?id=' + (g.device_id || 0) : '/learn');
         }
         res.redirect('/learn');
+    }));
+
+    // ---------- Problem reports on guides ----------
+    app.post('/learn/report', wrap(async (req, res) => {
+        if (!loggedIn(req, res)) return;
+        const db = await database();
+        const acc = await programAccess(db, req.session);
+        const g = await db.get('SELECT id, program_id FROM guides WHERE id = ?', [parseInt(req.body.id, 10) || 0]);
+        if (!g || !sees(acc, g.program_id)) return res.redirect('/learn');
+        const msg = String(req.body.message || '').replace(/\r/g, '').trim().slice(0, 1000);
+        if (msg.length < 5) { flash(req, 'Describe the problem in a few words.', true); return res.redirect('/learn/guide?id=' + g.id); }
+        const today = await db.get(`SELECT COUNT(*) AS n FROM guide_reports WHERE employee_id = ? AND created_at >= datetime('now', '-1 day')`, [req.session.userID]);
+        if (today.n >= 10) { flash(req, 'You have sent a lot of reports today. Tell your manager in person instead.', true); return res.redirect('/learn/guide?id=' + g.id); }
+        await db.run('INSERT INTO guide_reports (guide_id, employee_id, name, message) VALUES (?,?,?,?)', [g.id, req.session.userID, req.session.name || '', msg]);
+        res.redirect('/learn/guide?id=' + g.id + '&reported=1');
+    }));
+
+    // Reports on the guides this manager can edit
+    async function reportsFor(db, acc, req, status) {
+        const rows = await db.all(`SELECT r.*, g.title, g.program_id, d.name AS device_name FROM guide_reports r JOIN guides g ON g.id = r.guide_id
+            LEFT JOIN devices d ON d.id = g.device_id WHERE r.status = ? ORDER BY r.id ${status === 'open' ? 'ASC' : 'DESC'} LIMIT 200`, [status]);
+        return rows.filter(r => canEditProgram(acc, req, r.program_id));
+    }
+    app.get('/learn/reports', wrap(async (req, res) => {
+        if (needAdmin(req, res)) return;
+        const db = await database();
+        const acc = await programAccess(db, req.session);
+        const fmt = r => ({ ...r, when: String(r.created_at || '').slice(0, 16).replace('T', ' '), done: String(r.resolved_at || '').slice(0, 10) });
+        res.render('learn_reports', { flash: takeFlash(req), open: (await reportsFor(db, acc, req, 'open')).map(fmt), closed: (await reportsFor(db, acc, req, 'resolved')).slice(0, 30).map(fmt) });
+    }));
+    app.post('/learn/reports/resolve', wrap(async (req, res) => {
+        if (needAdmin(req, res)) return;
+        const db = await database();
+        const acc = await programAccess(db, req.session);
+        const r = await db.get('SELECT r.id, r.status, g.program_id FROM guide_reports r JOIN guides g ON g.id = r.guide_id WHERE r.id = ?', [parseInt(req.body.id, 10) || 0]);
+        if (r && canEditProgram(acc, req, r.program_id)) {
+            if (r.status === 'open') await db.run(`UPDATE guide_reports SET status = 'resolved', resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?`, [req.session.name || '', r.id]);
+            else await db.run(`UPDATE guide_reports SET status = 'open', resolved_by = '', resolved_at = NULL WHERE id = ?`, [r.id]);
+            flash(req, r.status === 'open' ? 'Marked as fixed.' : 'Reopened.');
+        }
+        res.redirect('/learn/reports');
     }));
 
     // ---------- Devices ----------

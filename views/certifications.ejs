@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certifications - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Certifications</h1>
+    <p class="sub">Who holds which certification. <%= admin ? 'Click a box to award a certification, or click a check to remove it.' : 'Managers award certifications.' %></p>
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <div class="panel">
+        <h3>My certifications</h3>
+        <% if (!mine.length) { %><p class="hint">None yet. Ask your manager what you need to earn your first one.</p><% } else { %>
+        <div class="chips"><% mine.forEach(m => { %><span class="badge ok" title="Awarded <%= m.when %><%= m.by ? ' by ' + m.by : '' %>">&#10003; <%= m.name %></span><% }) %></div>
+        <% } %>
+    </div>
+
+    <% const backQs = (programId ? '?program=' + programId : '') + (q ? (programId ? '&' : '?') + 'q=' + encodeURIComponent(q) : ''); %>
+    <div class="panel">
+        <form action="/certifications" method="GET" class="searchbar certfilter">
+            <% if (admin) { %>
+            <select name="program" aria-label="Program" onchange="this.form.submit()">
+                <option value="0">Everyone I manage</option>
+                <% programs.forEach(p => { %><option value="<%= p.id %>" <%= p.id === programId ? 'selected' : '' %>><%= p.name %></option><% }) %>
+            </select>
+            <% } %>
+            <input type="search" name="q" value="<%= q %>" placeholder="Find a person" maxlength="60" aria-label="Find a person">
+            <button type="submit">Filter</button>
+        </form>
+        <% if (!rows.length) { %><p class="hint">Nobody to show.</p><% } else { %>
+        <div class="table-wrap"><table class="certtbl">
+            <thead>
+                <tr><th rowspan="2">Person</th><th colspan="3" class="c grp">CompTIA</th><th colspan="3" class="c grp">Repair specialist</th><th colspan="3" class="c grp">Program</th></tr>
+                <tr><% certs.forEach(c => { %><th class="c" title="<%= c.name %>"><%= c.short %></th><% }) %></tr>
+            </thead>
+            <tbody><% rows.forEach(p => { %><tr>
+                <td><%= p.name %></td>
+                <% certs.forEach(c => { const h = p.held.get(c.key); const tip = h ? c.name + ' — awarded ' + String(h.awarded_at || '').slice(0, 10) + (h.awarded_name ? ' by ' + h.awarded_name : '') + (h.note ? ' (' + h.note + ')' : '') : c.name + ' — not held'; %>
+                <td class="c"><% if (p.editable) { %><form action="/certifications/toggle" method="POST" style="margin:0"<% if (h) { %> onsubmit="return confirm('Remove <%= c.name %> from <%= p.name.replace(/'/g, '') %>?')"<% } %>>
+                    <input type="hidden" name="employee" value="<%= p.id %>"><input type="hidden" name="cert" value="<%= c.key %>"><input type="hidden" name="back" value="<%= backQs %>">
+                    <button type="submit" class="cellbtn btn-ghost <%= h ? 'on' : '' %>" title="<%= tip %>" aria-label="<%= c.name %> for <%= p.name %>: <%= h ? 'held, click to remove' : 'not held, click to award' %>"><%= h ? '✓' : '' %></button></form>
+                <% } else { %><span class="cellbtn <%= h ? 'on' : '' %>" title="<%= tip %>"><%= h ? '✓' : '' %></span><% } %></td>
+                <% }) %>
+            </tr><% }) %></tbody>
+        </table></div>
+        <% } %>
+    </div>
+
+    <div class="panel">
+        <h3>What each certification means</h3>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Certification</th><th>Means</th><th class="c">Holders shown</th></tr></thead>
+            <tbody><% certs.forEach(c => { %><tr><td><strong><%= c.name %></strong></td><td><%= c.desc %></td><td class="c"><%= counts[c.key] %></td></tr><% }) %></tbody>
+        </table></div>
+        <p class="hint">Repair specialist certifications also decide which repair guides open: guides marked for a Senior or Master Repair Specialist open only for people holding that certification or a higher one. Managers can open every guide.</p>
+    </div>
+<style>
+.certtbl th.c,.certtbl td.c{text-align:center;padding-left:4px;padding-right:4px}
+.certtbl thead tr:last-child th{white-space:normal;max-width:76px;line-height:1.2;font-size:13px}
+.certtbl th.grp{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.certtbl td:first-child{white-space:nowrap}
+.certfilter{margin-bottom:14px}
+.certfilter select{width:auto;min-width:200px}
+.cellbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--line,#cbd5e1);background:transparent;padding:0;margin:0;font-weight:700;color:var(--accent,#12843f);cursor:pointer}
+span.cellbtn{cursor:default}
+.cellbtn.on{background:var(--accent-soft,#dcfce7);border-color:var(--accent,#12843f)}
+</style>
+</body>
+</html>

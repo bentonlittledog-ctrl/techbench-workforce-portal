@@ -16,7 +16,7 @@
     <form action="/learn" method="GET" class="searchbar">
         <input type="search" name="q" value="<%= q %>" placeholder="Search guides, devices or repairs (try &quot;LCD&quot; or &quot;NL73&quot;)" maxlength="80" aria-label="Search">
         <button type="submit">Search</button>
-        <% if (isAdmin) { %><a class="btn-link" href="/learn/edit">+ Add a page</a><a class="btn-link" href="/learn/devices">Manage devices</a><% } %>
+        <% if (isAdmin) { %><a class="btn-link" href="/learn/edit">+ Add a page</a><a class="btn-link" href="/learn/devices">Manage devices</a><a class="btn-link" href="/learn/reports">Guide reports<%= openReports ? ' (' + openReports + ')' : '' %></a><% } %>
     </form>
 
     <% if (results) { %>

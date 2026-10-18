@@ -2,6 +2,7 @@
 // failure patterns, the history of one device, and the Bench settings page.
 const bench = require('./bench');
 const tiers = require('./tiers');
+const certs = require('./certs');
 const L = require('./ticketlib');
 const { CLOSED, READY, STATUSES } = L;
 
@@ -58,7 +59,11 @@ async function loadPeopleState(db) {
     const onShift = new Set((await db.all(`SELECT l.employee_id AS id FROM logs l WHERE l.action = 'CLOCK_IN' AND l.id = (SELECT id FROM logs x WHERE x.employee_id = l.employee_id ORDER BY x.timestamp DESC, x.id DESC LIMIT 1)`).catch(() => [])).map(r => r.id));
     const skills = new Map();
     (await db.all('SELECT employee_id, skill FROM student_skills')).forEach(r => { if (!skills.has(r.employee_id)) skills.set(r.employee_id, new Set()); skills.get(r.employee_id).add(r.skill); });
-    return { people, open, onShift, skills };
+    await certs.ensure(db);
+    const held = new Map();
+    (await db.all('SELECT employee_id, cert FROM certifications')).forEach(r => { if (!held.has(r.employee_id)) held.set(r.employee_id, new Set()); held.get(r.employee_id).add(r.cert); });
+    const certRank = new Map([...held].map(([id, set]) => [id, certs.repairRank(set)]));
+    return { people, open, onShift, skills, certRank };
 }
 // Ranked candidates, best first. `eligible` is false when Tier 3 gating is on and they are missing a needed skill.
 async function suggestions(db, t, state) {
@@ -66,6 +71,7 @@ async function suggestions(db, t, state) {
     const gate = await L.flag(db, 'bench_gate_tier3', false);
     const needed = L.skillsForParts(t.parts).filter(k => k !== 'diag');
     const hard = gate && (tiers.num(t.tier) || 0) >= 3;
+    const certNeed = (await L.flag(db, 'bench_gate_certs', false)) ? certs.rankForTier(tiers.num(t.tier) || 0) : 0;
     const rows = state.people.map(p => {
         const have = state.skills.get(p.id) || new Set(), missing = needed.filter(k => !have.has(k));
         const open = state.open.get(p.id) || 0, shift = state.onShift.has(p.id);
@@ -73,7 +79,9 @@ async function suggestions(db, t, state) {
         const why = [open + ' open ticket' + (open === 1 ? '' : 's')];
         if (needed.length) why.push(missing.length ? 'not signed off on ' + missing.map(L.skillName).join(', ') : 'signed off on the needed skills');
         if (shift) why.push('clocked in now');
-        return { id: p.id, name: p.name, open, onShift: shift, missing, score, eligible: !(hard && missing.length), why: why.join(' · ') };
+        const certOk = !certNeed || ((state.certRank && state.certRank.get(p.id)) || 0) >= certNeed;
+        if (!certOk) why.push('not certified for this tier');
+        return { id: p.id, name: p.name, open, onShift: shift, missing, score, eligible: !(hard && missing.length) && certOk, why: why.join(' · ') };
     });
     return rows.sort((a, b) => a.score - b.score || a.open - b.open || a.name.localeCompare(b.name));
 }
@@ -172,6 +180,7 @@ function mount(app, getDb, wrap) {
         const db = await gate(req, res, true); if (!db) return;
         res.render('bench_settings', { flash: takeFlash(req), s: {
             autoassign: await L.flag(db, 'bench_autoassign', false), gate3: await L.flag(db, 'bench_gate_tier3', false), signoff: await L.flag(db, 'bench_require_signoff', false),
+            certgate: await L.flag(db, 'bench_gate_certs', false),
             factor: parseFloat(await L.getSetting(db, 'bench_long_factor', '1.5')) || 1.5 } });
     }));
     app.post('/bench/settings', wrap(async (req, res) => {
@@ -182,8 +191,9 @@ function mount(app, getDb, wrap) {
         await L.setSetting(db, 'bench_autoassign', b.autoassign === '1' ? '1' : '0', who);
         await L.setSetting(db, 'bench_gate_tier3', b.gate3 === '1' ? '1' : '0', who);
         await L.setSetting(db, 'bench_require_signoff', b.signoff === '1' ? '1' : '0', who);
+        await L.setSetting(db, 'bench_gate_certs', b.certgate === '1' ? '1' : '0', who);
         await L.setSetting(db, 'bench_long_factor', f, who);
-        await L.audit(db, req.session, 'BENCH_SETTINGS', 'Auto-assign ' + (b.autoassign === '1' ? 'on' : 'off') + ', Tier 3 skill gate ' + (b.gate3 === '1' ? 'on' : 'off') + ', mentor check-off ' + (b.signoff === '1' ? 'required' : 'optional') + ', "long" after ' + f + 'x typical');
+        await L.audit(db, req.session, 'BENCH_SETTINGS', 'Auto-assign ' + (b.autoassign === '1' ? 'on' : 'off') + ', Tier 3 skill gate ' + (b.gate3 === '1' ? 'on' : 'off') + ', certification gate ' + (b.certgate === '1' ? 'on' : 'off') + ', mentor check-off ' + (b.signoff === '1' ? 'required' : 'optional') + ', "long" after ' + f + 'x typical');
         flash(req, 'Saved.'); res.redirect('/bench/settings');
     }));
 

@@ -237,7 +237,7 @@ function mount(app, getDb, wrap) {
         if (id && id !== t.assigned_to) {
             const c = await skills.checkAssign(db, t, id, req.session, req.body.override === '1');
             if (!c.ok) { flash(req, c.msg, true); return nextUrl ? res.redirect(nextUrl) : back(res, t.id); }
-            if (c.overridden) await event(db, t.id, req, 'assign', 'Manager override: not signed off on ' + c.overridden.map(L.skillName).join(', '));
+            if (c.overridden) await event(db, t.id, req, 'assign', 'Manager override, missing: ' + c.overridden.map(L.skillName).join(', '));
         }
         if (id !== t.assigned_to) {
             await db.run('UPDATE repair_tickets SET assigned_to = ?, assigned_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id, name, t.id]);

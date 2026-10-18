@@ -28,6 +28,11 @@
             <thead><tr><th>Tier</th><th class="num">Repairs</th></tr></thead>
             <tbody><% byTier.forEach(b => { %><tr><td><%= b.label %></td><td class="num"><%= b.count %></td></tr><% }) %></tbody>
         </table></div>
+        <h3>Certifications</h3>
+        <% if (!certList.length) { %><p class="hint">None yet.</p><% } else { %>
+        <div class="table-wrap"><table><thead><tr><th>Certification</th><th>Awarded by</th><th>Date</th></tr></thead>
+        <tbody><% certList.forEach(c => { %><tr><td><%= c.name %></td><td><%= c.by %></td><td><%= c.when %></td></tr><% }) %></tbody></table></div>
+        <% } %>
         <h3>Skills signed off</h3>
         <% if (!skills.length) { %><p class="hint">None yet.</p><% } else { %>
         <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Signed off by</th><th>Date</th></tr></thead>

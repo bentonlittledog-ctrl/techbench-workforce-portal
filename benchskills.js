@@ -1,6 +1,7 @@
 // Student skills and sign-offs, mentor check-off on repairs, printable portfolio, and hours worked per ticket.
 const bench = require('./bench');
 const tiers = require('./tiers');
+const certs = require('./certs');
 const L = require('./ticketlib');
 const { CLOSED, READY, SKILLS } = L;
 const r1 = n => n == null ? null : Math.round(n * 10) / 10;
@@ -15,12 +16,23 @@ async function isMentor(db, session) {
 
 // May this ticket go to this person? Only matters when "Tier 3 and 4 need a signed-off student" is on.
 async function checkAssign(db, t, assigneeId, session, override) {
-    if (!assigneeId || !(await L.flag(db, 'bench_gate_tier3', false))) return { ok: true };
-    if ((tiers.num(t.tier) || 0) < 3) return { ok: true };
+    if (!assigneeId) return { ok: true };
+    // Certification gate: Tier 1-2 needs a Basic, Tier 3 a Senior, Tier 4 a Master Repair Specialist (or higher).
+    let overridden = null;
+    if (await L.flag(db, 'bench_gate_certs', false)) {
+        const c = await certs.ticketCheck(db, tiers.num(t.tier), assigneeId);
+        if (!c.ok) {
+            if (session.admin === 1 && override) overridden = [c.need];
+            else return { ok: false, missing: [], msg: 'That person needs the ' + c.need + ' certification for a ' + tiers.label(tiers.num(t.tier)).split(' - ')[0] + ' repair.' + (session.admin === 1 ? ' Tick "Override" to assign it anyway.' : ' Ask a manager.') };
+        }
+    }
+    const done = { ok: true }; if (overridden) done.overridden = overridden;
+    if (!(await L.flag(db, 'bench_gate_tier3', false))) return done;
+    if ((tiers.num(t.tier) || 0) < 3) return done;
     const have = await skillsOf(db, assigneeId);
     const missing = L.skillsForParts(t.parts).filter(k => k !== 'diag' && !have.has(k));
-    if (!missing.length) return { ok: true };
-    if (session.admin === 1 && override) return { ok: true, overridden: missing };
+    if (!missing.length) return done;
+    if (session.admin === 1 && override) return { ok: true, overridden: (overridden || []).concat(missing) };
     return { ok: false, missing, msg: 'That person is not signed off on ' + missing.map(L.skillName).join(', ') + ', which this ' + tiers.label(tiers.num(t.tier)).split(' - ')[0] + ' repair needs.' + (session.admin === 1 ? ' Tick "Override" to assign it anyway.' : ' Ask a manager.') };
 }
 // Called before a ticket moves to Ready for Pickup. Returns { ok:false, msg } to refuse, or records the sign-off when a mentor/manager is the one moving it.
@@ -134,10 +146,13 @@ function mount(app, getDb, wrap) {
         const st = hrs.perStudent.get(id) || { shift: 0, onTickets: 0, tickets: new Set() };
         const skills = (await db.all('SELECT skill, signed_name, at FROM student_skills WHERE employee_id = ? ORDER BY at', [id])).map(s => ({ name: L.skillName(s.skill), by: s.signed_name, when: L.fmt(s.at) }));
         const givenOff = (await db.get('SELECT COUNT(*) AS n FROM repair_tickets WHERE mentor_id = ?', [id])).n;
+        await certs.ensure(db);
+        const certList = (await db.all('SELECT cert, awarded_name, awarded_at FROM certifications WHERE employee_id = ? ORDER BY awarded_at', [id]))
+            .filter(c => certs.BY_KEY[c.cert]).map(c => ({ name: certs.nameOf(c.cert), by: c.awarded_name, when: L.fmt(c.awarded_at) }));
         res.render('bench_portfolio', {
             emp: { id: emp.id, name: emp.name, studentId: emp.student_id || '', periods: emp.periods || '' }, isMe: id === req.session.userID, isAdmin: admin,
             repairs: done.length, byTier, avgDays: days.length ? r1(days.reduce((a, b) => a + b, 0) / days.length) : null,
-            hours: r1(st.shift), hoursOnTickets: r1(st.onTickets), skills, givenOff, today: new Date().toLocaleDateString('en-US'),
+            hours: r1(st.shift), hoursOnTickets: r1(st.onTickets), skills, certList, givenOff, today: new Date().toLocaleDateString('en-US'),
             recent: done.slice(0, 12).map(t => ({ id: t.id, model: t.model, tier: t.tier ? t.tier.split(' - ')[0] : '', when: L.fmt(fin.get(t.id)) }))
         });
     }));

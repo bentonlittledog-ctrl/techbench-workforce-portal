@@ -21,7 +21,7 @@
                 <div class="topicrow">
                     <span class="tname"><%= it.topic %></span>
                     <span class="tlinks">
-                        <% it.guides.forEach(g => { %><a href="/learn/guide?id=<%= g.id %>"><%= g.title === it.topic ? 'Open guide' : g.title %></a><% }) %>
+                        <% it.guides.forEach(g => { %><a href="/learn/guide?id=<%= g.id %>"<%- g.locked ? ' class="locked" title="Needs ' + g.needs + '"' : (g.needs ? ' title="Needs ' + g.needs + '"' : '') %>><% if (g.needs) { %>&#128274; <% } %><%= g.title === it.topic ? 'Open guide' : g.title %></a><% if (g.locked) { %><span class="hint">Needs <%= g.needs %></span><% } %><% }) %>
                         <% if (!it.guides.length) { %><span class="hint">No guide yet</span><% } %>
                         <% if (isAdmin) { %><a class="add" href="/learn/edit?kind=repair&amp;device=<%= device.id %>&amp;topic=<%= encodeURIComponent(it.topic) %>"><%= it.guides.length ? '+ another' : '+ Add' %></a><% } %>
                     </span>
@@ -30,6 +30,7 @@
         </div>
         <% }) %>
     </div>
+    <p class="hint">&#128274; = needs a repair specialist certification. See <a href="/certifications">Certifications</a>.</p>
 
     <% if (other.length || others.length) { %>
     <div class="panel">
@@ -40,5 +41,6 @@
         </ul>
     </div>
     <% } %>
+<style>.topicrow a.locked{color:var(--muted)}</style>
 </body>
 </html>

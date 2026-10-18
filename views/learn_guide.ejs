@@ -18,8 +18,16 @@
     </p>
 
     <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+    <% if (reported) { %><div class="msg ok" role="status">Thanks. Your report was sent to the managers.</div><% } %>
 
+    <% if (locked) { %>
     <article class="panel guide">
+        <h3>&#128274; This guide needs the <%= needs %> certification</h3>
+        <p>Ask your manager about earning it, or work on this repair with someone who holds it. You can see who does on the <a href="/certifications">Certifications</a> page.</p>
+    </article>
+    <% } else { %>
+    <article class="panel guide">
+        <% if (needs) { %><p><span class="badge warn">&#128274; Needs <%= needs %></span></p><% } %>
         <% if (embed) { %>
             <div class="video"><iframe src="<%= embed %>" title="<%= g.title %>" loading="lazy" allow="fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
             <p class="hint">If the video doesn't play on a school Chromebook, the web filter may be blocking it. <a href="<%= g.video_url %>" target="_blank" rel="noopener">Open it in a new tab</a>.</p>
@@ -34,6 +42,17 @@
         <p class="hint meta">Last updated <%= updated %><% if (g.updated_by) { %> by <%= g.updated_by %><% } %></p>
     </article>
 
+    <details class="panel report">
+        <summary>Report a problem with this guide</summary>
+        <form action="/learn/report" method="POST">
+            <input type="hidden" name="id" value="<%= g.id %>">
+            <label for="rmsg">What's wrong? <span class="hint">(a wrong screw count, a missing step, a broken link&hellip;)</span></label>
+            <textarea id="rmsg" name="message" rows="4" maxlength="1000" required minlength="5" placeholder="Step 4 says 6 screws, but my unit had 8."></textarea>
+            <button type="submit">Send to managers</button>
+        </form>
+    </details>
+    <% } %>
+
     <% if (isAdmin) { %>
         <form action="/learn/delete" method="POST" class="actions">
             <a class="btn-link" href="/learn/edit?id=<%= g.id %>">Edit this page</a>
@@ -41,5 +60,6 @@
             <button type="submit" class="btn-danger" onclick="return confirm('Delete this page for good?');">Delete</button>
         </form>
     <% } %>
+<style>.report summary{cursor:pointer;font-weight:600}.report form{margin-top:12px}.report textarea{width:100%}</style>
 </body>
 </html>

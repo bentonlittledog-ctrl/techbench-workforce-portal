@@ -49,6 +49,15 @@
             </select>
         </div>
 
+        <div data-for="repair">
+            <label for="min_cert">Who can open it?</label>
+            <select id="min_cert" name="min_cert">
+                <option value="">Everyone</option>
+                <% gates.forEach(c => { %><option value="<%= c.key %>" <%= g.min_cert === c.key ? 'selected' : '' %>><%= c.name %> or higher</option><% }) %>
+            </select>
+            <p class="hint" style="margin-top:6px;">Managers can always open it. Award certifications on the <a href="/certifications">Certifications</a> page.</p>
+        </div>
+
         <label for="title">Title</label>
         <input type="text" id="title" name="title" value="<%= g.title %>" maxlength="120" placeholder="e.g. LCD Screen Repair">
 

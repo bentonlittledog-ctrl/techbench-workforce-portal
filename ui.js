@@ -19,6 +19,7 @@ const ICON = {
     tool: '<path d="M14.5 6.5a4 4 0 005 5L12 19a2.1 2.1 0 01-3-3z M13 8L9 4 5 6l2 3z"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+    award: '<circle cx="12" cy="9" r="6"/><path d="M8.5 14L7 22l5-3 5 3-1.5-8"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
 };
 const svg = k => '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
@@ -88,7 +89,8 @@ function navHtml(nav, theme) {
         item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') +
         item('/schedule', 'clock', 'My schedule', path === '/schedule') +
         item('/schedule/calendar', 'list', 'Calendar', starts('/schedule/calendar')) +
-        item('/profile', 'users', 'My profile', path === '/profile') + '</ul>';
+        item('/profile', 'users', 'My profile', path === '/profile') +
+        item('/certifications', 'award', 'Certifications', starts('/certifications')) + '</ul>';
 
     if (nav.resources) {
         h += '<button type="button" class="grp" data-grp="resources" aria-expanded="true">Resources</button><ul>' +
