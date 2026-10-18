@@ -89,7 +89,8 @@ const PDF_SECTIONS = {
             'LCD Screen Repair': 'R10', 'LCD Cable Repair': 'R11', 'Camera Board Replacement': 'R12', 'Camera Cable Replacement': 'R12',
             'Motherboard Replacement': 'R17', 'Daughterboard Replacement': 'R6', 'Battery Replacement': 'R4', 'Bottom Assembly Replacement': 'R3',
             'Top Assembly': 'R15', 'Keyboard Replacement': 'R15', 'Trackpad Cable Replacement': 'R8', 'Hinge Replacement': 'R13',
-            'Bezel Replacement': 'R9', 'Device Powerwash': 'S3', 'Wifi Technical Difficulties': 'S3', 'Diagnostics': 'S2'
+            'Bezel Replacement': 'R9', 'Trackpad Replacement': 'R18', 'Speaker Replacement': 'R19',
+            'Device Powerwash': 'S3', 'Wifi Technical Difficulties': 'S3', 'Diagnostics': 'S2'
         }
     }
 };
@@ -215,11 +216,16 @@ function mount(app, getDb, wrap, express) {
                 // One time only: link each repair topic on the CTL NL73 / PX121E pages to its section of the built-in PDF guide.
                 // Recorded in learn_seeds, so pages an admin later edits or deletes are never put back.
                 await db.exec('CREATE TABLE IF NOT EXISTS learn_seeds (key TEXT PRIMARY KEY, done_at TEXT DEFAULT CURRENT_TIMESTAMP)');
-                if (!(await db.get(`SELECT 1 FROM learn_seeds WHERE key = 'pdf-guides-v1'`))) {
+                // Each import runs once. v2 adds the PX121E touchpad and speaker sections added to its guide later.
+                const imports = [['pdf-guides-v1', null], ['pdf-guides-v2', { 'CTL Chromebook PX121E': ['Trackpad Replacement', 'Speaker Replacement'] }]];
+                for (const [seedKey, only] of imports) {
+                    if (await db.get('SELECT 1 FROM learn_seeds WHERE key = ?', [seedKey])) continue;
                     for (const [devName, spec] of Object.entries(PDF_SECTIONS)) {
+                        if (only && !only[devName]) continue;
                         const dev = await db.get('SELECT id, program_id FROM devices WHERE name = ?', [devName]);
                         if (!dev) continue;
                         for (const [topic, code] of Object.entries(spec.topics)) {
+                            if (only && !only[devName].includes(topic)) continue;
                             if (await db.get(`SELECT 1 FROM guides WHERE kind = 'repair' AND device_id = ? AND topic = ?`, [dev.id, topic])) continue;
                             await db.run(
                                 `INSERT INTO guides (kind, device_id, program_id, topic, area, title, body, link_url, updated_by) VALUES ('repair', ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -228,7 +234,7 @@ function mount(app, getDb, wrap, express) {
                                     `/learn/pdf/${spec.file}#nameddest=${code}`, 'Repair guide import']);
                         }
                     }
-                    await db.run(`INSERT INTO learn_seeds (key) VALUES ('pdf-guides-v1')`);
+                    await db.run('INSERT INTO learn_seeds (key) VALUES (?)', [seedKey]);
                 }
             })().catch(err => { ready = null; throw err; });
         }
