@@ -92,6 +92,115 @@ const PDF_SECTIONS = {
             'Bezel Replacement': 'R9', 'Trackpad Replacement': 'R18', 'Speaker Replacement': 'R19',
             'Device Powerwash': 'S3', 'Wifi Technical Difficulties': 'S3', 'Diagnostics': 'S2'
         }
+    },
+    // Guides for the rest of the device list (added October 2026).
+    "HP Chromebook 11 G8 EE": {
+        file: 'HP_11_G8_EE_Repair_Guide.pdf', label: "HP Chromebook 11 G8 EE repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Top Assembly": "R2", "Keyboard Replacement": "R2", "Midframe Assembly": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Bezel Replacement": "R9", "LCD Screen Repair": "R10", "LCD Cable Repair": "R11", "Camera Board Replacement": "R12", "Camera Cable Replacement": "R12", "Hinge Replacement": "R13", "Motherboard Replacement": "R16"}
+    },
+    "HP Chromebook 11 G7 EE": {
+        file: 'HP_11_G7_EE_Repair_Guide.pdf', label: "HP Chromebook 11 G7 EE repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Top Assembly": "R2", "Keyboard Replacement": "R2", "Midframe Assembly": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Bezel Replacement": "R9", "LCD Screen Repair": "R10", "LCD Cable Repair": "R11", "Camera Board Replacement": "R12", "Camera Cable Replacement": "R12", "Hinge Replacement": "R13", "Motherboard Replacement": "R16"}
+    },
+    "HP Chromebook 11A G8 EE": {
+        file: 'HP_11A_G8_EE_Repair_Guide.pdf', label: "HP Chromebook 11A G8 EE repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Top Assembly": "R2", "Keyboard Replacement": "R2", "Midframe Assembly": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Bezel Replacement": "R9", "LCD Screen Repair": "R10", "LCD Cable Repair": "R11", "Camera Board Replacement": "R12", "Camera Cable Replacement": "R12", "Hinge Replacement": "R13", "Heatsink Replacement": "R15", "Motherboard Replacement": "R17"}
+    },
+    "HP Chromebook 11A G6 EE": {
+        file: 'HP_11A_G6_EE_Repair_Guide.pdf', label: "HP Chromebook 11A G6 EE repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Top Assembly": "R2", "Keyboard Replacement": "R2", "Midframe Assembly": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Bezel Replacement": "R9", "LCD Screen Repair": "R10", "LCD Cable Repair": "R11", "Camera Board Replacement": "R12", "Camera Cable Replacement": "R12", "Hinge Replacement": "R13", "Heatsink Replacement": "R15", "Motherboard Replacement": "R17"}
+    },
+    "HP Chromebook 11MK G9 EE": {
+        file: 'HP_11MK_G9_EE_Repair_Guide.pdf', label: "HP Chromebook 11MK G9 EE repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Top Assembly": "R2", "Keyboard Replacement": "R2", "Midframe Assembly": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Bezel Replacement": "R9", "LCD Screen Repair": "R10", "LCD Cable Repair": "R11", "Camera Board Replacement": "R12", "Camera Cable Replacement": "R12", "Hinge Replacement": "R13", "Heatsink Replacement": "R15", "Motherboard Replacement": "R17"}
+    },
+    "HP Chromebook 11 G9 EE": {
+        file: 'HP_11_G9_EE_Repair_Guide.pdf', label: "HP Chromebook 11 G9 EE repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Top Assembly": "R2", "Keyboard Replacement": "R2", "Midframe Assembly": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Bezel Replacement": "R9", "LCD Screen Repair": "R10", "LCD Cable Repair": "R11", "Camera Board Replacement": "R12", "Camera Cable Replacement": "R12", "Hinge Replacement": "R13", "Heatsink Replacement": "R15", "Motherboard Replacement": "R17"}
+    },
+    "HP Elite c640 14 inch G3 Chromebook": {
+        file: 'HP_Elite_c640_G3_Repair_Guide.pdf', label: "HP Elite c640 14 inch G3 Chromebook repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Trackpad Replacement": "R5", "Trackpad Cable Replacement": "R5", "Speaker Replacement": "R6", "Daughterboard Replacement": "R7", "Heatsink Replacement": "R8", "Bezel Replacement": "R10", "LCD Screen Repair": "R11", "LCD Cable Repair": "R12", "Camera Board Replacement": "R13", "Camera Cable Replacement": "R13", "Hinge Replacement": "R14", "Keyboard Replacement": "R15", "Top Assembly": "R15", "Midframe Assembly": "R15", "Motherboard Replacement": "R17", "Wifi Technical Difficulties": "S3"}
+    },
+    "HP Pro c640 Chromebook + Enterprise": {
+        file: 'HP_Pro_c640_Repair_Guide.pdf', label: "HP Pro c640 Chromebook + Enterprise repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Trackpad Replacement": "R5", "Trackpad Cable Replacement": "R5", "Speaker Replacement": "R6", "Daughterboard Replacement": "R7", "Heatsink Replacement": "R8", "Bezel Replacement": "R10", "LCD Screen Repair": "R11", "LCD Cable Repair": "R12", "Camera Board Replacement": "R13", "Camera Cable Replacement": "R13", "Hinge Replacement": "R14", "Keyboard Replacement": "R15", "Top Assembly": "R15", "Midframe Assembly": "R15", "Motherboard Replacement": "R17", "Wifi Technical Difficulties": "S3"}
+    },
+    "HP Fortis 14 G10 Chromebook": {
+        file: 'HP_Fortis_14_G10_Repair_Guide.pdf', label: "HP Fortis 14 G10 Chromebook repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "HP Fortis G1i 14 Chromebook + Enterprise": {
+        file: 'HP_Fortis_G1i_14_Repair_Guide.pdf', label: "HP Fortis G1i 14 Chromebook + Enterprise repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Lenovo 100e Chromebook": {
+        file: 'Lenovo_100e_Gen1_Repair_Guide.pdf', label: "Lenovo 100e Chromebook repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Lenovo 100e Gen 2": {
+        file: 'Lenovo_100e_Gen2_Repair_Guide.pdf', label: "Lenovo 100e Gen 2 repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Lenovo 100e Gen 2 AST": {
+        file: 'Lenovo_100e_Gen2_AST_Repair_Guide.pdf', label: "Lenovo 100e Gen 2 AST repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Lenovo 100e Chromebook Gen 4 (Intel)": {
+        file: 'Lenovo_100e_Gen4_Repair_Guide.pdf', label: "Lenovo 100e Chromebook Gen 4 (Intel) repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R17", "Midframe Assembly": "R17", "Motherboard Replacement": "R19"}
+    },
+    "Lenovo 14e Chromebook Gen 3": {
+        file: 'Lenovo_14e_Gen3_Repair_Guide.pdf', label: "Lenovo 14e Chromebook Gen 3 repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Lenovo 300e/N23 Yoga/Flex 11 Chromebook": {
+        file: 'Lenovo_300e_N23_Yoga_Flex11_Repair_Guide.pdf', label: "Lenovo 300e/N23 Yoga/Flex 11 Chromebook repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Top Assembly": "R2", "Keyboard Replacement": "R2", "Midframe Assembly": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Bezel Replacement": "R10", "LCD Screen Repair": "R11", "LCD Cable Repair": "R12", "Camera Board Replacement": "R13", "Camera Cable Replacement": "R13", "Hinge Replacement": "R14", "Motherboard Replacement": "R17", "Bottom Assembly Replacement": "R2"}
+    },
+    "Lenovo 500e Chromebook": {
+        file: 'Lenovo_500e_Repair_Guide.pdf', label: "Lenovo 500e Chromebook repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Acer Chromebook 511 (C741L/C741LT)": {
+        file: 'Acer_511_C741L_Repair_Guide.pdf', label: "Acer Chromebook 511 (C741L/C741LT) repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Trackpad Replacement": "R5", "Trackpad Cable Replacement": "R5", "Speaker Replacement": "R6", "Daughterboard Replacement": "R7", "Heatsink Replacement": "R8", "Bezel Replacement": "R10", "LCD Screen Repair": "R11", "LCD Cable Repair": "R12", "Camera Board Replacement": "R13", "Camera Cable Replacement": "R13", "Hinge Replacement": "R14", "Keyboard Replacement": "R15", "Top Assembly": "R15", "Midframe Assembly": "R15", "Motherboard Replacement": "R17", "Wifi Technical Difficulties": "S3"}
+    },
+    "Acer Chromebook 311 (C722/C722T)": {
+        file: 'Acer_311_C722_Repair_Guide.pdf', label: "Acer Chromebook 311 (C722/C722T) repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Acer Chromebook 514": {
+        file: 'Acer_514_Repair_Guide.pdf', label: "Acer Chromebook 514 repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Acer Chromebook Spin 514": {
+        file: 'Acer_Spin_514_Repair_Guide.pdf', label: "Acer Chromebook Spin 514 repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "ASUS Chromebook C204": {
+        file: 'ASUS_C204_Repair_Guide.pdf', label: "ASUS Chromebook C204 repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "ASUS Chromebook CX34 Flip (CX3401/3401FBA)": {
+        file: 'ASUS_CX34_Flip_Repair_Guide.pdf', label: "ASUS Chromebook CX34 Flip (CX3401/3401FBA) repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "ASUS Chromebook Enterprise CB34 Flip (CB3401)": {
+        file: 'ASUS_CB34_Flip_Repair_Guide.pdf', label: "ASUS Chromebook Enterprise CB34 Flip (CB3401) repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "CTL Chromebook Enterprise/PX14E/PX14EX/PX14EXT": {
+        file: 'CTL_PX14E_Repair_Guide.pdf', label: "CTL Chromebook Enterprise/PX14E/PX14EX/PX14EXT repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "CTL Chromebook Plus PX141GX / PX141GXT": {
+        file: 'CTL_PX141GX_Repair_Guide.pdf', label: "CTL Chromebook Plus PX141GX / PX141GXT repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Bottom Assembly Replacement": "R2", "Battery Replacement": "R3", "Network Board Replacement": "R5", "Wifi Technical Difficulties": "R5", "Trackpad Replacement": "R6", "Trackpad Cable Replacement": "R6", "Speaker Replacement": "R7", "Daughterboard Replacement": "R8", "Heatsink Replacement": "R9", "Bezel Replacement": "R11", "LCD Screen Repair": "R12", "LCD Cable Repair": "R13", "Camera Board Replacement": "R14", "Camera Cable Replacement": "R14", "Hinge Replacement": "R15", "Keyboard Replacement": "R16", "Top Assembly": "R16", "Midframe Assembly": "R16", "Motherboard Replacement": "R18"}
+    },
+    "Lenovo Chromebook Duet EDU G2": {
+        file: 'Lenovo_Duet_EDU_G2_Repair_Guide.pdf', label: "Lenovo Chromebook Duet EDU G2 repair guide",
+        topics: {"Device Powerwash": "S3", "Diagnostics": "S2", "Keyboard International Registration": "S4", "Wifi Technical Difficulties": "S3", "Keyboard Replacement": "R1", "Bezel Replacement": "R1", "LCD Screen Repair": "R3", "LCD Cable Repair": "R3", "Top Assembly": "R3", "Battery Replacement": "R4", "Camera Board Replacement": "R5", "Camera Cable Replacement": "R5", "Speaker Replacement": "R6"}
     }
 };
 
@@ -213,11 +322,15 @@ function mount(app, getDb, wrap, express) {
                         ['Admin', 'Master Administrative Sheet', 'https://docs.google.com/spreadsheets/d/1irEPQWWmxiwcHXBbnp0n-p4AoVtV-XCxZPz7OSNYLBA/edit',
                             'Part ordering, part usage, inventory and repair logging.', 'admin', 0, tbId]);
                 }
-                // One time only: link each repair topic on the CTL NL73 / PX121E pages to its section of the built-in PDF guide.
+                // One time only: link each repair topic on each device page to its section of the built-in PDF guide.
                 // Recorded in learn_seeds, so pages an admin later edits or deletes are never put back.
                 await db.exec('CREATE TABLE IF NOT EXISTS learn_seeds (key TEXT PRIMARY KEY, done_at TEXT DEFAULT CURRENT_TIMESTAMP)');
                 // Each import runs once. v2 adds the PX121E touchpad and speaker sections added to its guide later.
-                const imports = [['pdf-guides-v1', null], ['pdf-guides-v2', { 'CTL Chromebook PX121E': ['Trackpad Replacement', 'Speaker Replacement'] }]];
+                // v3 links every topic of the guides added for the other devices.
+                const v3 = Object.fromEntries(Object.entries(PDF_SECTIONS)
+                    .filter(([name]) => name !== 'CTL Chromebook NL73' && name !== 'CTL Chromebook PX121E')
+                    .map(([name, spec]) => [name, Object.keys(spec.topics)]));
+                const imports = [['pdf-guides-v1', null], ['pdf-guides-v2', { 'CTL Chromebook PX121E': ['Trackpad Replacement', 'Speaker Replacement'] }], ['pdf-guides-v3', v3]];
                 for (const [seedKey, only] of imports) {
                     if (await db.get('SELECT 1 FROM learn_seeds WHERE key = ?', [seedKey])) continue;
                     for (const [devName, spec] of Object.entries(PDF_SECTIONS)) {
