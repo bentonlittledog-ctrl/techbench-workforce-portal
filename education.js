@@ -65,10 +65,41 @@ function renderBody(src) {
     return html;
 }
 
+// Repair-guide PDFs that ship with the app (learn-pdfs folder). A guide can link straight to one section:
+//   /learn/pdf/NL73_Repair_Guide.pdf#nameddest=R11   or   ...#page=21
+const PDF_NAME = /^[A-Za-z0-9_-]+\.pdf$/;
+const PDF_LINK = /^\/learn\/pdf\/([A-Za-z0-9_-]+\.pdf)(#(?:nameddest=[A-Za-z0-9_]{1,20}|page=\d{1,4}))?$/;
+const pdfLink = s => { const m = String(s || '').match(PDF_LINK); return m ? m[0] : null; };
+
+// Section of each built-in guide that covers each repair topic, per device (codes printed on each repair in the PDF).
+const PDF_SECTIONS = {
+    'CTL Chromebook NL73': {
+        file: 'NL73_Repair_Guide.pdf', label: 'CTL NL73 repair guide',
+        topics: {
+            'LCD Screen Repair': 'R11', 'LCD Cable Repair': 'R12', 'Camera Board Replacement': 'R13', 'Camera Cable Replacement': 'R13',
+            'Motherboard Replacement': 'R19', 'Daughterboard Replacement': 'R8', 'Battery Replacement': 'R4', 'Bottom Assembly Replacement': 'R3',
+            'Top Assembly': 'R17', 'Network Board Replacement': 'R6', 'Keyboard Replacement': 'R17', 'Trackpad Replacement': 'R7',
+            'Trackpad Cable Replacement': 'R7', 'Hinge Replacement': 'R14', 'Bezel Replacement': 'R10', 'Speaker Replacement': 'R16',
+            'Device Powerwash': 'S3', 'Wifi Technical Difficulties': 'R6', 'Diagnostics': 'S2'
+        }
+    },
+    'CTL Chromebook PX121E': {
+        file: 'PX121E_Repair_Guide.pdf', label: 'CTL PX121E repair guide',
+        topics: {
+            'LCD Screen Repair': 'R10', 'LCD Cable Repair': 'R11', 'Camera Board Replacement': 'R12', 'Camera Cable Replacement': 'R12',
+            'Motherboard Replacement': 'R17', 'Daughterboard Replacement': 'R6', 'Battery Replacement': 'R4', 'Bottom Assembly Replacement': 'R3',
+            'Top Assembly': 'R15', 'Keyboard Replacement': 'R15', 'Trackpad Cable Replacement': 'R8', 'Hinge Replacement': 'R13',
+            'Bezel Replacement': 'R9', 'Device Powerwash': 'S3', 'Wifi Technical Difficulties': 'S3', 'Diagnostics': 'S2'
+        }
+    }
+};
+
 // Web address typed by an admin: '' if blank, null if not a usable http(s) address.
+// Also accepts a link to one of the app's own repair-guide PDFs (see PDF_LINK).
 function cleanUrl(s) {
     s = String(s || '').trim();
     if (!s) return '';
+    if (s.startsWith('/learn/pdf/')) return pdfLink(s);
     let u;
     try { u = new URL(s); } catch (e) { return null; }
     return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null;
@@ -181,6 +212,24 @@ function mount(app, getDb, wrap, express) {
                         ['Admin', 'Master Administrative Sheet', 'https://docs.google.com/spreadsheets/d/1irEPQWWmxiwcHXBbnp0n-p4AoVtV-XCxZPz7OSNYLBA/edit',
                             'Part ordering, part usage, inventory and repair logging.', 'admin', 0, tbId]);
                 }
+                // One time only: link each repair topic on the CTL NL73 / PX121E pages to its section of the built-in PDF guide.
+                // Recorded in learn_seeds, so pages an admin later edits or deletes are never put back.
+                await db.exec('CREATE TABLE IF NOT EXISTS learn_seeds (key TEXT PRIMARY KEY, done_at TEXT DEFAULT CURRENT_TIMESTAMP)');
+                if (!(await db.get(`SELECT 1 FROM learn_seeds WHERE key = 'pdf-guides-v1'`))) {
+                    for (const [devName, spec] of Object.entries(PDF_SECTIONS)) {
+                        const dev = await db.get('SELECT id, program_id FROM devices WHERE name = ?', [devName]);
+                        if (!dev) continue;
+                        for (const [topic, code] of Object.entries(spec.topics)) {
+                            if (await db.get(`SELECT 1 FROM guides WHERE kind = 'repair' AND device_id = ? AND topic = ?`, [dev.id, topic])) continue;
+                            await db.run(
+                                `INSERT INTO guides (kind, device_id, program_id, topic, area, title, body, link_url, updated_by) VALUES ('repair', ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                [dev.id, dev.program_id, topic, HARDWARE.includes(topic) ? 'Hardware repair' : 'Software repair', topic,
+                                    `> Section ${code} of the ${spec.label}. It opens below at that section. Use the full-screen button to read it in its own tab.`,
+                                    `/learn/pdf/${spec.file}#nameddest=${code}`, 'Repair guide import']);
+                        }
+                    }
+                    await db.run(`INSERT INTO learn_seeds (key) VALUES ('pdf-guides-v1')`);
+                }
             })().catch(err => { ready = null; throw err; });
         }
         await ready;
@@ -272,7 +321,7 @@ function mount(app, getDb, wrap, express) {
         if (!g || !sees(acc, g.program_id)) return res.redirect('/learn');
         res.render('learn_guide', {
             flash: takeFlash(req), isAdmin: isAdmin(req) && canEditProgram(acc, req, g.program_id), g, kindName: KINDS[g.kind] || g.kind,
-            bodyHtml: renderBody(g.body), embed: embedOf(g.video_url), updated: String(g.updated_at || '').slice(0, 10)
+            bodyHtml: renderBody(g.body), embed: embedOf(g.video_url), pdf: pdfLink(g.link_url), updated: String(g.updated_at || '').slice(0, 10)
         });
     }));
 
@@ -426,6 +475,18 @@ function mount(app, getDb, wrap, express) {
         res.redirect('/learn/devices');
     }));
 
+    // ---------- Built-in repair-guide PDFs ----------
+    // Signed-in people with access to the Education section only (same rule as the Learning tab in the menu).
+    const pdfDir = path.join(__dirname, 'learn-pdfs');
+    app.get('/learn/pdf/:name', wrap(async (req, res) => {
+        if (!req.session.userID) return res.redirect('/');
+        if (!PDF_NAME.test(req.params.name)) return res.status(404).end();
+        const db = await database();
+        if (!(await hasResources(db, req.session))) return res.status(403).send('Not available to your program.');
+        res.sendFile(path.join(pdfDir, req.params.name), { headers: { 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' } },
+            err => { if (err && !res.headersSent) res.status(404).end(); });
+    }));
+
     // ---------- Pictures ----------
     const adminOnlyJson = (req, res, next) => {
         if (!req.session.userID || req.session.admin !== 1) return res.status(403).json({ error: 'Not allowed.' });
@@ -512,4 +573,5 @@ module.exports.hasResources = hasResources;
 module.exports.renderBody = renderBody;
 module.exports.embedOf = embedOf;
 module.exports.cleanUrl = cleanUrl;
+module.exports.pdfLink = pdfLink;
 module.exports.sniff = sniff;

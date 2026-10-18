@@ -69,8 +69,8 @@
         <textarea id="body" name="body" rows="16" maxlength="20000" placeholder="1. Power off the device and unplug the charger.&#10;2. Remove the bottom screws.&#10;> Keep the screws in order so they go back in the same holes."><%= g.body %></textarea>
         <p class="hint">One line per step. Start a line with <code>1.</code> for a numbered step, <code>-</code> for a bullet, <code>##</code> for a heading, <code>&gt;</code> for a tip or warning. Use <code>**bold**</code> for emphasis. &ldquo;Add picture&rdquo; puts a picture at your cursor.</p>
 
-        <label for="link_url">Link to a document <span class="hint">(optional, such as a PDF or Google Doc)</span></label>
-        <input type="url" id="link_url" name="link_url" value="<%= g.link_url %>" placeholder="https://">
+        <label for="link_url">Link to a document <span class="hint">(optional, such as a PDF or Google Doc. To open a built-in repair guide at one section: /learn/pdf/NL73_Repair_Guide.pdf#nameddest=R11)</span></label>
+        <input type="text" inputmode="url" id="link_url" name="link_url" value="<%= g.link_url %>" placeholder="https://">
 
         <button type="submit">Save page</button>
     </form>
