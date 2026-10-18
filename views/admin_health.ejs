@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health check - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Health check</h1>
+    <p class="sub">One screen to check the portal is looking after itself. Checked <%= now %>.</p>
+    <div class="msg <%= bad ? 'bad' : warn ? '' : 'ok' %>" role="status"><%= bad ? bad + ' thing' + (bad === 1 ? '' : 's') + ' need attention.' : warn ? 'Working, with ' + warn + ' thing' + (warn === 1 ? '' : 's') + ' worth a look.' : 'Everything looks good.' %></div>
+    <div class="panel">
+        <div class="table-wrap"><table>
+            <thead><tr><th>Check</th><th>Status</th><th>Details</th></tr></thead>
+            <tbody><% checks.forEach(c => { %><tr><td><%= c.name %></td><td><span class="badge <%= c.state === 'ok' ? 'ok' : c.state === 'bad' ? 'bad' : 'warn' %>"><%= c.state === 'ok' ? 'OK' : c.state === 'bad' ? 'Fix' : 'Check' %></span></td><td><%= c.detail %></td></tr><% }) %></tbody>
+        </table></div>
+        <p class="hint">Need a copy off the server? <a href="/admin/backup">Download a backup</a>.</p>
+    </div>
+</body>
+</html>

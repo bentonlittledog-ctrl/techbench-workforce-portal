@@ -10,7 +10,7 @@ const RULES = [
     { key: 'clock', test: (m, p) => m === 'POST' && p === '/punch', what: 'Clocking in and out' },
     { key: 'requests', test: (m, p) => p === '/requests' || p.startsWith('/requests/'), what: 'Requesting missed hours' },
     { key: 'learn', test: (m, p) => p === '/learn' || p.startsWith('/learn/') || p === '/links' || p.startsWith('/links/'), what: 'Learn guides and quick links' },
-    { key: 'bench_manage', test: (m, p) => /^\/bench\/(report|import|setup)/.test(p) || p === '/bench/ticket/delete', what: 'This Tech Bench admin page' },
+    { key: 'bench_manage', test: (m, p) => /^\/bench\/(report|import|setup|settings|statements|hours)/.test(p) || p === '/bench/ticket/delete', what: 'This Tech Bench admin page' },
     { key: 'bench_order', test: (m, p) => /^\/bench\/(order|repair)/.test(p), what: 'Ordering parts and logging repairs' },
     { key: 'bench', test: (m, p) => p === '/bench' || p.startsWith('/bench/'), what: 'The Tech Bench' }
 ];

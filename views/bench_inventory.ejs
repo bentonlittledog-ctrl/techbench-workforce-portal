@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parts inventory - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Parts inventory</h1>
+    <p class="sub">What is on the shelf, how fast it gets used, and what to order. Usage comes from the last <%= spanDays %> days of repairs.</p>
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <% if (toOrder.length) { %>
+    <div class="panel">
+        <h3>Suggested order <% if (lowCount) { %><span class="badge warn"><%= lowCount %> running low</span><% } %></h3>
+        <p class="hint">Enough for about 4 weeks of repairs at the recent pace, plus the tickets already waiting on parts.</p>
+        <ul class="plain"><% toOrder.forEach(r => { %><li><strong><%= r.order %> x <%= r.name %></strong> <span class="dim">(<%= r.onHand == null ? 'not counted' : r.onHand + ' on hand' %><%= r.pending ? ', ' + r.pending + ' ticket' + (r.pending === 1 ? '' : 's') + ' waiting' : '' %>)</span></li><% }) %></ul>
+    </div>
+    <% } %>
+
+    <div class="panel">
+        <h3>On the shelf</h3>
+        <% if (!rows.length) { %><p class="hint">Nothing here yet. Add the parts you keep in stock below.</p><% } else { %>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Part</th><th class="num">On hand</th><th class="num">Used / week</th><th class="num">Weeks left</th><th class="num">Waiting</th><th>Count</th><th>Stock arrived</th><% if (isAdmin) { %><th></th><% } %></tr></thead>
+            <tbody><% rows.forEach(r => { %><tr>
+                <td><%= r.name %> <% if (r.low) { %><span class="badge warn">Low</span><% } %><% if (!r.tracked) { %><span class="badge">Not counted</span><% } %></td>
+                <td class="num"><%= r.onHand == null ? '-' : r.onHand %></td>
+                <td class="num"><%= r.perWeek %></td>
+                <td class="num"><%= r.weeksLeft == null ? '-' : r.weeksLeft %></td>
+                <td class="num"><%= r.pending || '-' %></td>
+                <td><% if (r.tracked) { %><form action="/bench/inventory/save" method="POST" style="display:flex;gap:6px;align-items:center;margin:0"><input type="hidden" name="id" value="<%= r.id %>"><input type="number" name="on_hand" min="0" max="9999" value="<%= r.onHand %>" style="width:80px;margin:0" aria-label="Count for <%= r.name %>"><% if (isAdmin) { %><input type="number" name="min_stock" min="0" max="9999" value="<%= r.minStock %>" style="width:80px;margin:0" title="Low-stock line" aria-label="Low-stock line for <%= r.name %>"><% } %><button type="submit" class="btn-ghost" style="margin:0">Save</button></form><% } else { %><form action="/bench/inventory/add" method="POST" style="margin:0"><input type="hidden" name="name" value="<%= r.name %>"><input type="hidden" name="on_hand" value="0"><button type="submit" class="btn-ghost" style="margin:0">Start counting</button></form><% } %></td>
+                <td><% if (r.tracked) { %><form action="/bench/inventory/receive" method="POST" style="display:flex;gap:6px;margin:0"><input type="hidden" name="id" value="<%= r.id %>"><input type="number" name="qty" min="1" max="999" placeholder="+" style="width:70px;margin:0" aria-label="Arrived: <%= r.name %>"><button type="submit" class="btn-ghost" style="margin:0">Add</button></form><% } %></td>
+                <% if (isAdmin) { %><td><% if (r.tracked) { %><form action="/bench/inventory/delete" method="POST" onsubmit="return confirm('Remove this part from the list?');" style="margin:0"><input type="hidden" name="id" value="<%= r.id %>"><button type="submit" class="btn-ghost" style="margin:0">Remove</button></form><% } %></td><% } %>
+            </tr><% }) %></tbody>
+        </table></div>
+        <% if (isAdmin) { %><p class="hint">The second box in the Count column (managers only) is the low-stock line. A part shows as Low when the count is at or below it.</p><% } %>
+        <% } %>
+    </div>
+
+    <form class="panel" action="/bench/inventory/add" method="POST">
+        <h3>Add a part</h3>
+        <div class="row2">
+            <div><label for="pn">Part name</label><input type="text" id="pn" name="name" maxlength="80" required placeholder="e.g. Battery"></div>
+            <div><label for="po">How many on hand</label><input type="number" id="po" name="on_hand" min="0" max="9999" value="0"></div>
+        </div>
+        <% if (isAdmin) { %><label for="pm">Low-stock line</label><input type="number" id="pm" name="min_stock" min="0" max="9999" value="0"><% } %>
+        <button type="submit">Add part</button>
+    </form>
+
+    <% if (isAdmin) { %>
+    <form class="panel" action="/bench/inventory/bulk" method="POST">
+        <h3>Add many parts at once</h3>
+        <p class="hint">One part per line, for example the part names from your repair form. Parts already on the list are skipped.</p>
+        <textarea name="names" rows="5" maxlength="6000"></textarea>
+        <button type="submit">Add them</button>
+    </form>
+    <% } %>
+</body>
+</html>

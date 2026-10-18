@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio - <%= emp.name %></title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <div class="noprint" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+        <h1 style="margin:0">Tech Bench portfolio</h1>
+        <button type="button" onclick="window.print()" style="margin:0">Print</button>
+    </div>
+    <p class="sub noprint">A one-page summary of the work done on the Student Tech Work Bench.</p>
+
+    <div class="panel pf">
+        <h2 style="margin:0 0 2px"><%= emp.name %></h2>
+        <p class="hint" style="margin:0 0 14px">Student Tech Work Bench<%= emp.studentId ? ' · Student ID ' + emp.studentId : '' %><%= emp.periods ? ' · Periods ' + emp.periods : '' %> · Printed <%= today %></p>
+        <div class="cards">
+            <div class="card"><div class="big"><%= repairs %></div><div class="lbl">Repairs completed</div></div>
+            <div class="card"><div class="big"><%= hours %></div><div class="lbl">Hours on the clock</div></div>
+            <div class="card"><div class="big"><%= avgDays == null ? '-' : avgDays %></div><div class="lbl">Average days per repair</div></div>
+            <div class="card"><div class="big"><%= givenOff %></div><div class="lbl">Repairs checked off for others</div></div>
+        </div>
+        <h3>Repairs by tier</h3>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Tier</th><th class="num">Repairs</th></tr></thead>
+            <tbody><% byTier.forEach(b => { %><tr><td><%= b.label %></td><td class="num"><%= b.count %></td></tr><% }) %></tbody>
+        </table></div>
+        <h3>Skills signed off</h3>
+        <% if (!skills.length) { %><p class="hint">None yet.</p><% } else { %>
+        <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Signed off by</th><th>Date</th></tr></thead>
+        <tbody><% skills.forEach(s => { %><tr><td><%= s.name %></td><td><%= s.by %></td><td><%= s.when %></td></tr><% }) %></tbody></table></div>
+        <% } %>
+        <% if (recent.length) { %>
+        <h3>Recent repairs</h3>
+        <div class="table-wrap"><table><thead><tr><th>Device</th><th>Tier</th><th>Finished</th></tr></thead>
+        <tbody><% recent.forEach(r => { %><tr><td><%= r.model %></td><td><%= r.tier || '-' %></td><td><%= r.when %></td></tr><% }) %></tbody></table></div>
+        <% } %>
+    </div>
+</body>
+</html>

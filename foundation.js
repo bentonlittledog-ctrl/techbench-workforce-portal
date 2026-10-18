@@ -145,6 +145,7 @@ function mount(app, getDb, wrap) {
         await db.run('VACUUM INTO ?', [tmp]);
         await scrubSessions(tmp);
         const name = 'timecards-' + new Date().toISOString().slice(0, 10) + '.db';
+        try { const L = require('./ticketlib'); await L.ensureSchema(db); await L.setSetting(db, 'last_backup_download', new Date().toLocaleString('en-US', { timeZone: 'America/Denver' }), req.session.name); await L.audit(db, req.session, 'BACKUP_DOWNLOAD', 'Downloaded a copy of the database'); } catch (e) { /* logging must never block the download */ }
         res.download(tmp, name, () => fs.unlink(tmp, () => {}));
     }));
 

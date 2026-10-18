@@ -329,3 +329,10 @@ a.card:hover { border-color: var(--accent); }
 .sw.live em::before{content:"Off"}.sw.live input:checked ~ em{color:var(--accent,#12843f);font-weight:700}.sw.live input:checked ~ em::before{content:"On"}
 .perm:not(.on) .sw.live input:checked + i{background:var(--accent,#12843f)}
 .perms .perm.dim,.perm[aria-disabled]{opacity:.6}
+
+/* shared by the newer Tech Bench pages */
+.row2{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.row2>*{flex:1 1 180px}.row2 button{flex:0 0 auto;margin:0}
+.dim{color:var(--muted,#64748b)}
+.skilltbl th,.skilltbl td{padding-left:6px;padding-right:6px}
+button.cellbtn,.skilltbl button.cellbtn{width:30px;height:30px;min-height:0;padding:0;margin:0;background:transparent;color:var(--accent,#12843f);border:1px solid var(--line,#cbd5e1);border-radius:8px}
+button.cellbtn.on,span.cellbtn.on{background:var(--accent-soft,#dcfce7);border-color:var(--accent,#12843f)}

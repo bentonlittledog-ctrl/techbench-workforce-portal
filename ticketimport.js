@@ -140,6 +140,7 @@ function mount(app, getDb, wrap, express) {
             }
             await db.run('COMMIT');
         } catch (e) { try { await db.run('ROLLBACK'); } catch (e2) {} throw e; }
+        await L.audit(db, req.session, 'TICKET_IMPORT', 'Imported ' + made + ' old repair ticket(s) from the Repair Logger sheet (' + skipped + ' already there)');
         res.json({ ok: true, made, skipped });
     }));
 }

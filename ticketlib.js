@@ -73,6 +73,12 @@ function ensureSchema(db) {
                   uploaded_by INTEGER, uploaded_by_name TEXT DEFAULT '',
                   at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_by TEXT DEFAULT '');
+                CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT DEFAULT CURRENT_TIMESTAMP, actor_id INTEGER, actor_name TEXT, target_id INTEGER, target_name TEXT, action TEXT NOT NULL, details TEXT, reason TEXT);
+                CREATE TABLE IF NOT EXISTS parts_inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE COLLATE NOCASE, on_hand INTEGER NOT NULL DEFAULT 0, min_stock INTEGER NOT NULL DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP);
+                CREATE TABLE IF NOT EXISTS ticket_parts_used (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER NOT NULL, part TEXT NOT NULL, qty INTEGER NOT NULL DEFAULT 1, at TEXT DEFAULT CURRENT_TIMESTAMP, by_id INTEGER, by_name TEXT DEFAULT '');
+                CREATE TABLE IF NOT EXISTS student_skills (employee_id INTEGER NOT NULL, skill TEXT NOT NULL, signed_by INTEGER, signed_name TEXT DEFAULT '', at TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (employee_id, skill));
+                CREATE INDEX IF NOT EXISTS idx_partsused_ticket ON ticket_parts_used(ticket_id);
                 CREATE INDEX IF NOT EXISTS idx_tickets_status ON repair_tickets(status);
                 CREATE INDEX IF NOT EXISTS idx_tickets_serial ON repair_tickets(serial);
                 CREATE INDEX IF NOT EXISTS idx_events_ticket ON ticket_events(ticket_id);
@@ -82,6 +88,10 @@ function ensureSchema(db) {
                 if (!cols.includes(c)) await db.exec(`ALTER TABLE repair_tickets ADD COLUMN ${c} TEXT DEFAULT ''`);
             }
             if (!cols.includes('notified_at')) await db.exec('ALTER TABLE repair_tickets ADD COLUMN notified_at TEXT');
+            for (const [c, def] of [['status_token', 'TEXT'], ['mentor_id', 'INTEGER'], ['mentor_name', "TEXT DEFAULT ''"], ['mentor_at', 'TEXT'], ['pickup_by', "TEXT DEFAULT ''"],
+                ['pickup_rel', "TEXT DEFAULT ''"], ['pickup_at', 'TEXT'], ['pickup_note', "TEXT DEFAULT ''"], ['pickup_id_checked', 'INTEGER DEFAULT 0']]) {
+                if (!cols.includes(c)) await db.exec(`ALTER TABLE repair_tickets ADD COLUMN ${c} ${def}`);
+            }
             for (const k of Object.keys(OLD)) await db.run('UPDATE repair_tickets SET status = ? WHERE status = ?', [OLD[k], k]);   // statuses renamed earlier
             // tickets made before sites were recorded: use the creator's school when they have exactly one
             const blanks = await db.all("SELECT id, created_by FROM repair_tickets WHERE (site_name IS NULL OR site_name = '') AND created_by IS NOT NULL").catch(() => []);
@@ -171,7 +181,35 @@ async function benchPeople(db) {
 }
 const csvCell = v => { let s = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 
+// ---------- settings, audit trail, skills ----------
+const getSetting = async (db, key, def) => { const r = await db.get('SELECT value FROM app_settings WHERE key = ?', [key]); return r && r.value != null ? r.value : def; };
+const setSetting = (db, key, value, who) => db.run('INSERT OR REPLACE INTO app_settings (key, value, updated_at, updated_by) VALUES (?,?,CURRENT_TIMESTAMP,?)', [key, String(value), who || '']);
+const flag = async (db, key, def) => (await getSetting(db, key, def ? '1' : '0')) === '1';
+// One line in the district audit log. `session` may be null for system actions.
+const audit = (db, session, action, details, target) => db.run(
+    'INSERT INTO audit_log (actor_id, actor_name, target_id, target_name, action, details, reason) VALUES (?,?,?,?,?,?,?)',
+    [session ? session.userID : null, session ? (session.name || '') : 'System', target && target.id != null ? target.id : null, target && target.name || '', action, String(details || '').slice(0, 500), '']);
+
+// What a student can be signed off on. `re` decides which parts need the skill.
+const SKILLS = [
+    { key: 'diag', name: 'Diagnostics', re: null },
+    { key: 'screen', name: 'Screens and displays', re: /screen|lcd|display|digitizer|bezel/i },
+    { key: 'battery', name: 'Batteries', re: /batter/i },
+    { key: 'keyboard', name: 'Keyboards, palmrests and trackpads', re: /keyboard|palm ?rest|track ?pad/i },
+    { key: 'hinge', name: 'Hinges and covers', re: /hinge|cover|chassis|housing|body damage/i },
+    { key: 'camera', name: 'Cameras', re: /camera|webcam/i },
+    { key: 'board', name: 'Motherboards and daughterboards', re: /mother ?board|daughter ?board|logic board/i },
+    { key: 'power', name: 'Charging and power', re: /charg|adapter|dc jack|power/i },
+    { key: 'audio', name: 'Speakers', re: /speaker|audio/i },
+    { key: 'mentor', name: 'Mentor (can check off other students’ repairs)', re: null }
+];
+const skillsForParts = text => { const t = String(text || ''); return SKILLS.filter(k => k.re && k.re.test(t)).map(k => k.key); };
+const skillName = key => (SKILLS.find(k => k.key === key) || {}).name || key;
+// Hours between two UTC stamps
+const hoursBetween = (a, b) => { const x = parse(a), y = parse(b); return x && y ? Math.max(0, (y - x) / 3600000) : 0; };
+
 module.exports = {
+    getSetting, setSetting, flag, audit, SKILLS, skillsForParts, skillName, hoursBetween,
     benchPeople, csvCell,
     STATUSES, CLOSED, GRADES, FIRST, READY, PARTS, STUCK_STATUSES, STUCK_DAYS, OLD, PRIORITIES, PROGRAM,
     one, multi, tone, sid, nameOf, isEmail, parse, sqlNow, fmt, ageDays, day, isDate, human,

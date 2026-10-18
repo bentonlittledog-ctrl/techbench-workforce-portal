@@ -4,6 +4,7 @@ const tiers = require('./tiers');
 
 const L = require('./ticketlib');
 const notify = require('./notify');
+const brain = require('./benchbrain'), skills = require('./benchskills'), partsmod = require('./benchparts'), pickup = require('./benchpickup');
 const { STATUSES, CLOSED, GRADES, FIRST, READY, PARTS, PRIORITIES, one, multi, tone, sid, nameOf, fmt, ageDays, day, isDate } = L;
 
 function mount(app, getDb, wrap) {
@@ -58,6 +59,7 @@ function mount(app, getDb, wrap) {
         await event(db, r.lastID, req, 'created', source === 'form' ? 'Logged from the Repair Logger form' : 'Created in the portal');
         if (tierWhy) await event(db, r.lastID, req, 'tier', 'Suggested ' + tier + ' (' + tierWhy.toLowerCase() + ')'); 
         if (f.notes && multi(f.notes, 600)) await event(db, r.lastID, req, 'note', multi(f.notes, 600));
+        if (await L.flag(db, 'bench_autoassign', false)) { try { await brain.autoAssign(db, await getTicket(db, r.lastID), req.session); } catch (e) { console.error('Auto-assign failed:', e.message); } }
         return { ok: true, id: r.lastID };
     }
 
@@ -80,7 +82,7 @@ function mount(app, getDb, wrap) {
             tier: ['1', '2', '3', '4', 'none'].includes(Q.tier) ? Q.tier : '',
             model: one(Q.model, 120),
             school: one(Q.school, 60),
-            flag: ['stuck', 'repeat'].includes(Q.flag) ? Q.flag : '',
+            flag: ['stuck', 'repeat', 'long'].includes(Q.flag) ? Q.flag : '',
             from: isDate(Q.from) ? Q.from : '', to: isDate(Q.to) ? Q.to : '',
             sort: SORTS[Q.sort] ? Q.sort : 'priority'
         };
@@ -89,7 +91,8 @@ function mount(app, getDb, wrap) {
         const me = req.session.userID;
         const all = await db.all('SELECT * FROM repair_tickets ORDER BY id DESC LIMIT 5000');
         const changes = await L.lastChanges(db), repeats = await L.repeatMap(db), nowD = new Date();
-        all.forEach(t => { t.stuck = L.stuckFor(t, changes.get(t.id), nowD); t.repeatN = repeats.get(String(t.serial || '').toLowerCase()) || 1; });
+        const est = await brain.estimator(db);
+        all.forEach(t => { t.stuck = L.stuckFor(t, changes.get(t.id), nowD); t.repeatN = repeats.get(String(t.serial || '').toLowerCase()) || 1; t.long = est.longFor(t); });
         const isOpen = t => !CLOSED.includes(t.status);
         const count = {
             active: all.filter(isOpen).length,
@@ -97,7 +100,7 @@ function mount(app, getDb, wrap) {
             parts: all.filter(t => PARTS.includes(t.status)).length,
             ready: all.filter(t => t.status === READY).length,
             closed: all.filter(t => !isOpen(t)).length, all: all.length,
-            stuck: all.filter(t => isOpen(t) && t.stuck).length, repeat: all.filter(t => isOpen(t) && t.repeatN > 1).length
+            stuck: all.filter(t => isOpen(t) && t.stuck).length, long: all.filter(t => isOpen(t) && t.long).length, repeat: all.filter(t => isOpen(t) && t.repeatN > 1).length
         };
         let rows = all.filter(t => view === 'all' ? true : view === 'closed' ? !isOpen(t) : view === 'mine' ? isOpen(t) && t.assigned_to === me
             : view === 'parts' ? PARTS.includes(t.status) : view === 'ready' ? t.status === READY : isOpen(t));
@@ -115,6 +118,7 @@ function mount(app, getDb, wrap) {
         if (f.school) rows = rows.filter(t => (t.site_name || '') === f.school);
         if (f.flag === 'stuck') rows = rows.filter(t => t.stuck && isOpen(t));
         if (f.flag === 'repeat') rows = rows.filter(t => t.repeatN > 1);
+        if (f.flag === 'long') rows = rows.filter(t => t.long && isOpen(t));
         if (f.from) rows = rows.filter(t => day(t.created_at) >= f.from);
         if (f.to) rows = rows.filter(t => day(t.created_at) <= f.to);
         const by = {
@@ -127,7 +131,7 @@ function mount(app, getDb, wrap) {
         f.sort = sort;
         rows.sort(by[sort]);
         const total = rows.length;
-        rows = rows.slice(0, 300).map(t => Object.assign({}, t, { age: ageDays(t.created_at, t.closed_at), tone: tone(t.status), when: fmt(t.created_at), student: nameOf(t), tierN: tiers.num(t.tier), stuck: t.stuck, repeatN: t.repeatN }));
+        rows = rows.slice(0, 300).map(t => Object.assign({}, t, { age: ageDays(t.created_at, t.closed_at), tone: tone(t.status), when: fmt(t.created_at), student: nameOf(t), tierN: tiers.num(t.tier), stuck: t.stuck, repeatN: t.repeatN, long: t.long }));
         const devices = await db.all("SELECT d.name FROM devices d JOIN programs p ON p.id = d.program_id WHERE p.name = 'Student Tech Work Bench' ORDER BY d.brand, d.name").catch(() => []);
         const models = [...new Set(all.map(t => t.model))].sort((a, b) => a.localeCompare(b));
         const schools = [...new Set(all.map(t => t.site_name).filter(Boolean))].sort();
@@ -173,6 +177,9 @@ function mount(app, getDb, wrap) {
             timeline: tl, fmtTs: fmt, stuck, stuckDays: L.STUCK_DAYS(), times, prevSoon: prev || null, photos, sites, human: L.human,
             mailConfigured: notify.configured(), mailTo: notify.recipients(t), canDeletePhotos: req.session.admin === 1,
             flash: takeFlash(req), t: Object.assign({}, t, { student: nameOf(t), age: ageDays(t.created_at, t.closed_at), tone: tone(t.status), when: fmt(t.created_at), closedWhen: fmt(t.closed_at) }),
+            plus: Object.assign({}, await brain.ticketData(db, t), await partsmod.ticketData(db, t), await skills.ticketData(db, t, req.session), {
+                relations: pickup.RELATIONS, signoffRequired: await L.flag(db, 'bench_require_signoff', false), gate3: await L.flag(db, 'bench_gate_tier3', false),
+                statusUrl: t.status_token ? (req.get('x-forwarded-proto') || req.protocol) + '://' + req.get('host') + '/status/' + t.status_token : '', canRotate: req.session.admin === 1 }),
             tier: tierView(t), suggestion: suggest(t), TIERS: tiers.TIERS,
             events, history, grades: GRADES, statuses: STATUSES, priorities: PRIORITIES, people: await people(db), me: req.session.userID, isAdmin: req.session.admin === 1
         });
@@ -185,6 +192,10 @@ function mount(app, getDb, wrap) {
         const t = await getTicket(db, req.body && req.body.id); if (!t) return res.redirect('/bench/queue');
         const s = one(req.body.status, 40), note = multi(req.body.note, 600);
         if (!STATUSES.includes(s)) { flash(req, 'Choose a status from the list.', true); return back(res, t.id); }
+        if (s === READY && t.status !== READY) {
+            const chk = await skills.checkReady(db, t, req.session);
+            if (!chk.ok) { flash(req, chk.msg, true); return back(res, t.id); }
+        }
         if (s !== t.status) {
             await db.run('UPDATE repair_tickets SET status = ?, closed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
                 [s, CLOSED.includes(s) ? new Date().toISOString().replace('T', ' ').slice(0, 19) : null, t.id]);
@@ -223,6 +234,11 @@ function mount(app, getDb, wrap) {
             id = p.id; name = p.name;
         }
         const nextUrl = String(req.body.next || '') === 'workload' ? '/bench/workload' : '';
+        if (id && id !== t.assigned_to) {
+            const c = await skills.checkAssign(db, t, id, req.session, req.body.override === '1');
+            if (!c.ok) { flash(req, c.msg, true); return nextUrl ? res.redirect(nextUrl) : back(res, t.id); }
+            if (c.overridden) await event(db, t.id, req, 'assign', 'Manager override: not signed off on ' + c.overridden.map(L.skillName).join(', '));
+        }
         if (id !== t.assigned_to) {
             await db.run('UPDATE repair_tickets SET assigned_to = ?, assigned_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id, name, t.id]);
             await event(db, t.id, req, 'assign', id ? 'Assigned to ' + name : 'Unassigned');
@@ -282,7 +298,9 @@ function mount(app, getDb, wrap) {
         if (req.session.admin !== 1) { flash(req, 'Only managers can delete a ticket.', true); return back(res, req.body && req.body.id); }
         const t = await getTicket(db, req.body && req.body.id); if (!t) return res.redirect('/bench/queue');
         await L.removePhotos(db, t.id);
+        await L.audit(db, req.session, 'TICKET_DELETE', 'Deleted ticket #' + t.id + ' (' + t.model + (t.serial ? ', ' + t.serial : '') + ', ' + t.status + ')');
         await db.run('DELETE FROM ticket_events WHERE ticket_id = ?', [t.id]);
+        await db.run('DELETE FROM ticket_parts_used WHERE ticket_id = ?', [t.id]);
         await db.run('DELETE FROM repair_tickets WHERE id = ?', [t.id]);
         flash(req, 'Ticket #' + t.id + ' deleted.');
         res.redirect('/bench/queue');

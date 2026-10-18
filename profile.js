@@ -53,7 +53,7 @@ function mount(app, getDb, wrap) {
         res.render('profile', {
             me: { first: firstName(me.name), name: me.name, username: me.username, studentId: me.student_id || '', periods: me.periods || '' },
             role: ctx.district ? 'District administrator' : ctx.admin ? 'Manager' : 'Employee',
-            places: memberships, manages: scopes, groups, onCount: perms.filter(x => x.on).length, total: perms.length
+            places: memberships, manages: scopes, bench: ctx.bench, groups, onCount: perms.filter(x => x.on).length, total: perms.length
         });
     }));
 }

@@ -98,9 +98,16 @@ function navHtml(nav, theme) {
             item('/bench/queue', 'tool', 'Repair queue', starts('/bench/queue') || starts('/bench/ticket')) +
             item('/bench/workload', 'users', 'Workload', starts('/bench/workload')) +
             item('/bench/dashboard', 'chart', 'Bench stats', starts('/bench/dashboard')) +
+            item('/bench/skills', 'users', 'Skills', starts('/bench/skills')) +
+            item('/bench/inventory', 'box', 'Parts inventory', starts('/bench/inventory')) +
+            item('/bench/patterns', 'chart', 'Failure patterns', starts('/bench/patterns')) +
+            item('/bench/device', 'tool', 'Device history', starts('/bench/device')) +
                 (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
                 item('/bench/repair', 'tool', 'Log a repair', starts('/bench/repair')) : '') +
             (nav.admin && nav.benchManage !== false ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +
+                item('/bench/statements', 'list', 'School statements', starts('/bench/statements')) +
+                item('/bench/hours', 'chart', 'Hours per repair', starts('/bench/hours')) +
+                item('/bench/settings', 'edit', 'Bench settings', starts('/bench/settings')) +
                 item('/bench/import', 'db', 'Import old tickets', starts('/bench/import')) +
                 item('/bench/setup', 'db', 'Sheet connection', starts('/bench/setup')) : '') + '</ul>';
     }
@@ -116,6 +123,8 @@ function navHtml(nav, theme) {
         h += '<div class="grp">District</div><ul>' +
             item('/admin/org', 'org', 'Sites &amp; assignments', path === '/admin/org') +
             item('/admin/audit', 'log', 'Audit log', path === '/admin/audit') +
+            item('/admin/autoclock', 'clock', 'Auto clock-out', path === '/admin/autoclock') +
+            item('/admin/health', 'chart', 'Health check', path === '/admin/health') +
             item('/admin/backup', 'db', 'Download backup', false) + '</ul>';
     }
 

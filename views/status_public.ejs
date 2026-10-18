@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Repair status</title>
+    <%- headTags %>
+    <style>
+        body.pub{display:block;min-height:100vh;padding:24px 16px;background:var(--bg,#eef1f6)}
+        .pubwrap{max-width:520px;margin:0 auto}
+        .pubcard{background:var(--surface,#fff);border:1px solid var(--line,#e2e8f0);border-radius:16px;padding:24px}
+        .pubcard h1{margin:0 0 4px;font-size:1.5rem}
+        .steps{display:flex;gap:6px;margin:22px 0 8px;padding:0;list-style:none}
+        .steps li{flex:1;text-align:center;font-size:.78rem;color:var(--muted,#64748b)}
+        .steps li::before{content:"";display:block;height:8px;border-radius:99px;background:#cbd5e1;margin-bottom:6px}
+        .steps li.on::before{background:var(--accent,#12843f)}.steps li.on{color:var(--ink,#0f172a);font-weight:600}
+        .pubnote{color:var(--muted,#64748b);font-size:.85rem;margin-top:18px}
+    </style>
+</head>
+<body class="pub">
+<div class="pubwrap"><div class="pubcard">
+<% if (!found) { %>
+    <h1>Link not found</h1>
+    <p>This status link is not valid any more. Please ask at the Tech Bench.</p>
+<% } else { %>
+    <p class="hint" style="margin:0">Tech Bench repair status</p>
+    <h1><%= title %></h1>
+    <p style="margin:0 0 4px"><strong><%= model %></strong></p>
+    <p style="margin:6px 0 0"><%= text %></p>
+    <% if (!returned && !bad) { %>
+    <ol class="steps" aria-label="Progress"><% steps.forEach((s, i) => { %><li class="<%= i + 1 <= step ? 'on' : '' %>"><%= s %></li><% }) %></ol>
+    <% } %>
+    <p class="pubnote">Checked in <%= checkedIn %> &middot; Last updated <%= updated %></p>
+<% } %>
+</div></div>
+</body>
+</html>

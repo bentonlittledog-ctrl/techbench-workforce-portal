@@ -13,6 +13,9 @@
     <h1>Workload</h1>
     <p class="sub">Each person's open tickets, busiest first, so work can be spread evenly. Unassigned tickets are at the top.</p>
     <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+    <% if (isAdmin && unassigned && unassigned.list && unassigned.list.length) { %>
+    <form action="/bench/autoassign" method="POST" onsubmit="return confirm('Give every unassigned ticket to the best-fit person?');" style="margin:0 0 14px"><button type="submit" class="btn-ghost" style="margin:0">Auto-assign all unassigned</button></form>
+    <% } %>
 
     <% if (unassigned.n) { %><%- include('partials/wl_card', { c: unassigned, canTake: true, me }) %><% } else { %><div class="msg ok">Every open ticket has someone assigned.</div><% } %>
     <% cards.forEach(c => { %><%- include('partials/wl_card', { c, canTake: false, me }) %><% }) %>

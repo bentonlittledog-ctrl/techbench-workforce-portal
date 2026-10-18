@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device history - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Device history</h1>
+    <p class="sub">Every repair a device has had, found by its serial number or asset ID.</p>
+    <form class="panel" action="/bench/device" method="GET">
+        <label for="q">Serial number or asset ID</label>
+        <input type="text" id="q" name="q" value="<%= q %>" maxlength="60" autocomplete="off" placeholder="Start typing a serial" autofocus>
+        <button type="submit">Look up</button>
+    </form>
+
+    <% if (q && !rows.length && !matches.length) { %><div class="msg bad">No device with that serial was found.</div><% } %>
+    <% if (matches.length) { %>
+    <div class="panel"><h3>Did you mean</h3>
+        <ul class="plain"><% matches.forEach(m => { %><li><a href="/bench/device?q=<%= encodeURIComponent(m.serial) %>"><%= m.serial %></a> - <%= m.model %> (<%= m.n %> ticket<%= m.n === 1 ? '' : 's' %>)</li><% }) %></ul>
+    </div>
+    <% } %>
+
+    <% if (summary) { %>
+    <div class="cards">
+        <div class="card"><div class="big"><%= summary.n %></div><div class="lbl">Times in the shop</div></div>
+        <div class="card"><div class="big"><%= summary.totalDays %></div><div class="lbl">Total days to repair</div></div>
+        <div class="card"><div class="big"><%= students.length %></div><div class="lbl">Student<%= students.length === 1 ? '' : 's' %> used it</div></div>
+    </div>
+    <div class="panel">
+        <h3><%= model %> <span class="dim">first seen <%= summary.first %></span></h3>
+        <% if (students.length) { %><p>Checked in by: <%= students.join(', ') %></p><% } %>
+        <% if (partsSeen.length) { %><p>Parts it has needed: <%= partsSeen.map(p => p[0] + ' (' + p[1] + ')').join(', ') %></p><% } %>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Ticket</th><th>Opened</th><th>Student</th><th>Problem</th><th>Parts</th><th>Tier</th><th>Status</th><th class="num">Days</th></tr></thead>
+            <tbody><% rows.forEach(r => { %><tr>
+                <td><a href="/bench/ticket?id=<%= r.id %>">#<%= r.id %></a></td><td><%= r.when %></td><td><%= r.student || '-' %></td><td><%= r.complaint %></td>
+                <td><%= r.parts || '-' %><% if (r.used) { %><div class="dim">Used: <%= r.used %></div><% } %></td><td><%= r.tier ? r.tier.split(' - ')[0] : '-' %></td>
+                <td><span class="badge <%= r.tone %>"><%= r.status %></span></td><td class="num"><%= r.days == null ? '-' : r.days %></td></tr><% }) %></tbody>
+        </table></div>
+    </div>
+    <% } else if (!q && common.length) { %>
+    <div class="panel"><h3>Devices that keep coming back</h3>
+        <ul class="plain"><% common.forEach(c => { %><li><a href="/bench/device?q=<%= encodeURIComponent(c.serial) %>"><%= c.serial %></a> - <%= c.model %> (<%= c.n %> tickets)</li><% }) %></ul>
+    </div>
+    <% } %>
+</body>
+</html>

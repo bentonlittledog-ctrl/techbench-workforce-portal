@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Failure patterns - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Failure patterns</h1>
+    <p class="sub">What keeps breaking, on which models, and where. <%= total %> ticket<%= total === 1 ? '' : 's' %> in this range.</p>
+    <div class="rangebar">
+        <% [['30','30 days'],['90','90 days'],['365','Year'],['all','All time']].forEach(r => { %><a class="<%= range === r[0] ? 'on' : '' %>" href="/bench/patterns?range=<%= r[0] %>"><%= r[1] %></a><% }) %>
+    </div>
+
+    <% if (insights.length) { %>
+    <div class="panel"><h3>What stands out</h3><ul class="plain"><% insights.forEach(i => { %><li><%= i %></li><% }) %></ul></div>
+    <% } %>
+
+    <div class="panel">
+        <h3>By model</h3>
+        <% if (!modelRows.length) { %><p class="hint">No tickets in this range.</p><% } else { %>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Model</th><th class="num">Tickets</th><th class="num">Share</th><th class="num">Avg days to repair</th><th class="num">Came back</th><th>Most common parts</th></tr></thead>
+            <tbody><% modelRows.forEach(m => { %><tr><td><%= m.model %></td><td class="num"><%= m.n %></td><td class="num"><%= m.share %>%</td><td class="num"><%= m.avgDays == null ? '-' : m.avgDays %></td><td class="num"><%= m.repeats %></td><td><%= m.topParts || '-' %></td></tr><% }) %></tbody>
+        </table></div>
+        <% } %>
+    </div>
+
+    <div class="panel">
+        <h3>By part</h3>
+        <% if (!partRows.length) { %><p class="hint">No parts recorded in this range.</p><% } else { %>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Part</th><th class="num">Repairs</th><th>Mostly on</th><th>Mostly at</th></tr></thead>
+            <tbody><% partRows.forEach(p => { %><tr><td><%= p.part %></td><td class="num"><%= p.n %></td><td><%= p.models %></td><td><%= p.schools %></td></tr><% }) %></tbody>
+        </table></div>
+        <% } %>
+    </div>
+
+    <div class="panel">
+        <h3>By school</h3>
+        <div class="table-wrap"><table>
+            <thead><tr><th>School</th><th class="num">Tickets</th><th class="num">Average tier</th></tr></thead>
+            <tbody><% schoolRows.forEach(s => { %><tr><td><%= s.school %></td><td class="num"><%= s.n %></td><td class="num"><%= s.avgTier == null ? '-' : s.avgTier %></td></tr><% }) %></tbody>
+        </table></div>
+    </div>
+</body>
+</html>

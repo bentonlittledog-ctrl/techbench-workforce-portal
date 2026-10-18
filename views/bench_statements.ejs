@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statements - Timecard Portal</title>
+    <%- headTags %>
+    <style>@media print{.school-stmt{page-break-after:always;break-after:page}.school-stmt:last-child{page-break-after:auto}}</style>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <div class="noprint">
+    <h1>School statements</h1>
+    <p class="sub">Repairs finished in a month, with the suggested fee for each tier, one statement per school. Fees come from the tier on each ticket.</p>
+    <form class="panel" action="/bench/statements" method="GET" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+        <div><label for="m">Month</label><input type="month" id="m" name="month" value="<%= month %>" style="margin:0"></div>
+        <button type="submit" style="margin:0">Show</button>
+        <a class="btn-ghost" style="margin:0;padding:10px 16px" href="/bench/statements.csv?month=<%= month %>">Download CSV</a>
+        <button type="button" class="btn-ghost" style="margin:0" onclick="window.print()">Print</button>
+    </form>
+    <p class="hint">A repair counts in the month it first reached Ready for Pickup, or the month it was closed. Mountain time.</p>
+    </div>
+
+    <% if (!schools.length) { %><div class="panel"><p class="hint">No repairs were finished in <%= label %>.</p></div><% } %>
+    <% schools.forEach(s => { %>
+    <div class="panel school-stmt">
+        <h2 style="margin:0">Tech Bench repair statement</h2>
+        <p class="hint" style="margin:2px 0 14px"><strong><%= s.school %></strong> &middot; <%= label %> &middot; Issued <%= issued %></p>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Ticket</th><th>Finished</th><th>Device</th><th>Serial</th><th>Tier</th><th class="num">Fee</th></tr></thead>
+            <tbody><% s.items.forEach(i => { %><tr><td>#<%= i.id %></td><td><%= i.finished %></td><td><%= i.model %></td><td><%= i.serial || '-' %></td><td><%= i.tier %></td><td class="num">$<%= i.fee.toLocaleString('en-US') %></td></tr><% }) %></tbody>
+            <tfoot><tr><td colspan="5"><strong>Total (<%= s.items.length %> repair<%= s.items.length === 1 ? '' : 's' %>)</strong></td><td class="num"><strong>$<%= s.total.toLocaleString('en-US') %></strong></td></tr></tfoot>
+        </table></div>
+        <p class="hint">Tier 1: <%= s.byTier[1] %> &middot; Tier 2: <%= s.byTier[2] %> &middot; Tier 3: <%= s.byTier[3] %> &middot; Tier 4: <%= s.byTier[4] %><%= s.byTier[0] ? ' · Tier not set: ' + s.byTier[0] + ' (not charged)' : '' %></p>
+    </div>
+    <% }) %>
+    <% if (schools.length > 1) { %><div class="panel noprint"><strong>All schools: $<%= grand.toLocaleString('en-US') %></strong> for <%= count %> repair<%= count === 1 ? '' : 's' %>.</div><% } %>
+</body>
+</html>

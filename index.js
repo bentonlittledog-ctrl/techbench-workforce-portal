@@ -293,6 +293,7 @@ app.get('/dashboard', wrap(async (req, res) => {
     const totalBillableHours = currentShifts.reduce((sum, s) => sum + parseFloat(s.hours), 0);
     const totalCompanyPayout = currentShifts.reduce((sum, s) => sum + parseFloat(s.amount), 0);
 
+    const autoNotice = await require('./autoclock').noticeFor(db, req.session.userID).catch(() => null);
     // One-time message left by /punch (e.g. duplicate punch)
     const error = req.session.error || null;
     delete req.session.error;
@@ -306,6 +307,7 @@ app.get('/dashboard', wrap(async (req, res) => {
         totalPayout: totalCompanyPayout.toFixed(2),
         currentStatus: currentStatus,
         sinceMs: sinceMs,
+        autoNotice: autoNotice,
         error: error
     });
 }));
@@ -413,8 +415,13 @@ require('./queue')(app, () => db, wrap);
 require('./ticketphotos')(app, () => db, wrap, express);
 require('./notify')(app, () => db, wrap);
 require('./benchstats')(app, () => db, wrap);
+require('./benchbrain')(app, () => db, wrap);
+require('./benchparts')(app, () => db, wrap);
+require('./benchskills')(app, () => db, wrap);
+require('./benchpickup')(app, () => db, wrap);
 require('./ticketimport')(app, () => db, wrap, express);
 require('./profile')(app, () => db, wrap);
+require('./autoclock')(app, () => db, wrap);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)
@@ -432,6 +439,7 @@ setupDb()
         console.log('Timecard database connection active.');
         app.listen(PORT, () => {
             console.log(`Server engine live and listening on port ${PORT}`);
+            require('./autoclock').start(() => db);
         });
     })
     .catch(err => {

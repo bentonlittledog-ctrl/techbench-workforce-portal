@@ -1,0 +1,91 @@
+<div class="panel" id="plus-estimate">
+    <h3>Time and history</h3>
+    <% if (plus.est) { %>
+        <p style="margin:0 0 6px">Typical repair time: <strong>about <%= plus.est.days %> day<%= plus.est.days === 1 ? '' : 's' %></strong> <span class="dim">(from <%= plus.est.n %> finished repairs of <%= plus.est.basis %>)</span></p>
+    <% } else { %>
+        <p class="hint" style="margin:0 0 6px">Not enough finished repairs yet to estimate a typical time.</p>
+    <% } %>
+    <% if (plus.long) { %><div class="msg bad" style="margin:8px 0"><strong>Taking long:</strong> open <%= plus.long.age %> days, typical is about <%= plus.long.est %>. Check what it is waiting on.</div><% } %>
+    <% if (plus.tHours != null) { %><p style="margin:0 0 6px">Student hours logged on this ticket: <strong><%= plus.tHours %> h</strong> <span class="dim">(estimate from shifts)</span></p><% } %>
+    <% if (t.serial) { %><p style="margin:0"><a href="/bench/device?q=<%= encodeURIComponent(t.serial) %>">See everything this device has been through</a></p><% } %>
+</div>
+
+<% if (plus.sug && plus.sug.length) { %>
+<div class="panel" id="plus-suggest">
+    <h3>Who should take this?</h3>
+    <ul class="plain" style="margin:0">
+        <% plus.sug.forEach((s, i) => { %>
+        <li style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:6px 0">
+            <span style="flex:1;min-width:0"><strong><%= s.name %></strong><%= i === 0 && s.eligible ? ' (best fit)' : '' %><br><span class="dim"><%= s.why %></span></span>
+            <form action="/bench/ticket/assign" method="POST" style="margin:0;display:flex;gap:6px;align-items:center;flex:none">
+                <input type="hidden" name="id" value="<%= t.id %>"><input type="hidden" name="assignee" value="<%= s.id %>">
+                <% if (!s.eligible && isAdmin) { %><label class="dim" style="font-size:12px"><input type="checkbox" name="override" value="1" style="width:auto;margin:0"> Override</label><% } %>
+                <button type="submit" class="btn-ghost" style="margin:0" <%= !s.eligible && !isAdmin ? 'disabled title="Not signed off on the needed skills"' : '' %>>Assign</button>
+            </form>
+        </li>
+        <% }) %>
+    </ul>
+</div>
+<% } %>
+
+<div class="panel" id="plus-parts">
+    <h3>Parts used</h3>
+    <% if (!plus.used.length) { %><p class="hint" style="margin:0 0 10px">No parts recorded yet. Record each part you use so the shelf count stays right.</p><% } else { %>
+        <ul class="plain" style="margin:0 0 10px"><% plus.used.forEach(u => { %>
+            <li style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span><%= u.qty %> x <strong><%= u.part %></strong> <span class="dim">&middot; <%= u.by_name %></span></span>
+                <form action="/bench/ticket/part/delete" method="POST" onsubmit="return confirm('Take this back and put it on the shelf?');" style="margin:0"><input type="hidden" name="id" value="<%= u.id %>"><button type="submit" class="btn-ghost" style="margin:0">Take back</button></form></li>
+        <% }) %></ul>
+    <% } %>
+    <form action="/bench/ticket/part" method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <input type="hidden" name="id" value="<%= t.id %>">
+        <div style="flex:1;min-width:160px"><label for="pu">Part</label><input type="text" id="pu" name="part" list="pu-list" maxlength="80" required autocomplete="off" style="margin:0"></div>
+        <datalist id="pu-list"><% plus.partChoices.forEach(c => { %><option value="<%= c.name %>"><% }) %></datalist>
+        <div style="width:80px"><label for="pq">Qty</label><input type="number" id="pq" name="qty" min="1" max="20" value="1" style="margin:0"></div>
+        <button type="submit" style="margin:0">Record</button>
+    </form>
+</div>
+
+<div class="panel" id="plus-signoff">
+    <h3>Mentor check-off</h3>
+    <% if (t.mentor_id) { %>
+        <p style="margin:0">Checked off by <strong><%= t.mentor_name %></strong> <span class="dim"><%= fmtTs(t.mentor_at) %></span></p>
+        <% if (plus.canRotate) { %><form action="/bench/ticket/signoff/clear" method="POST" style="margin-top:8px"><input type="hidden" name="id" value="<%= t.id %>"><button type="submit" class="btn-ghost" style="margin:0">Remove check-off</button></form><% } %>
+    <% } else { %>
+        <p class="hint" style="margin:0 0 8px"><%= plus.signoffRequired ? 'A mentor or manager must check this repair off before it can be marked Ready for Pickup.' : 'A second pair of eyes before the device goes back.' %></p>
+        <% if (plus.mentor && !(t.assigned_to === me && !isAdmin)) { %>
+            <form action="/bench/ticket/signoff" method="POST" style="display:flex;gap:8px;flex-wrap:wrap"><input type="hidden" name="id" value="<%= t.id %>"><input type="text" name="note" maxlength="300" placeholder="Optional note" style="flex:1;min-width:160px;margin:0"><button type="submit" style="margin:0">Check off this repair</button></form>
+        <% } else { %><p class="dim" style="margin:0"><%= plus.mentor ? 'You cannot check off your own repair.' : 'Waiting for a mentor or manager.' %></p><% } %>
+    <% } %>
+</div>
+
+<% if (t.status === 'Repaired - Ready for Pickup') { %>
+<div class="panel" id="plus-pickup">
+    <h3>Hand over the device</h3>
+    <form action="/bench/ticket/pickup" method="POST">
+        <input type="hidden" name="id" value="<%= t.id %>">
+        <div class="row2">
+            <div><label for="pk">Picked up by</label><input type="text" id="pk" name="by" maxlength="80" required autocomplete="off"></div>
+            <div><label for="pr">Who are they?</label><select id="pr" name="rel" required><option value="">Choose...</option><% plus.relations.forEach(r => { %><option><%= r %></option><% }) %></select></div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;margin:6px 0"><input type="checkbox" name="id_checked" value="1" style="width:auto;margin:0"> I checked their school ID</label>
+        <input type="text" name="note" maxlength="300" placeholder="Optional note">
+        <button type="submit">Confirm pickup and close ticket</button>
+    </form>
+</div>
+<% } else if (t.pickup_by) { %>
+<div class="panel" id="plus-pickup">
+    <h3>Pickup</h3>
+    <p style="margin:0">Handed to <strong><%= t.pickup_by %></strong> (<%= String(t.pickup_rel || '').toLowerCase() %>) on <%= fmtTs(t.pickup_at) %>. <%= t.pickup_id_checked ? 'ID checked.' : 'ID not checked.' %><%= t.pickup_note ? ' ' + t.pickup_note : '' %></p>
+</div>
+<% } %>
+
+<div class="panel" id="statuslink">
+    <h3>Status link</h3>
+    <p class="hint" style="margin:0 0 8px">A private page the student or parent can open without signing in. It shows only the device and where it is in the process, no names.</p>
+    <% if (plus.statusUrl) { %>
+        <input type="text" readonly value="<%= plus.statusUrl %>" onclick="this.select()" aria-label="Status link" style="margin:0 0 8px">
+        <% if (plus.canRotate) { %><form action="/bench/ticket/statuslink" method="POST" onsubmit="return confirm('This stops the old link working. Make a new one?');" style="margin:0"><input type="hidden" name="id" value="<%= t.id %>"><input type="hidden" name="rotate" value="1"><button type="submit" class="btn-ghost" style="margin:0">Replace link</button></form><% } %>
+    <% } else { %>
+        <form action="/bench/ticket/statuslink" method="POST" style="margin:0"><input type="hidden" name="id" value="<%= t.id %>"><button type="submit" style="margin:0">Make a status link</button></form>
+    <% } %>
+</div>

@@ -108,7 +108,7 @@ function mount(app, getDb, wrap) {
         open.filter(t => t.assigned_to && !people.some(p => p.id === t.assigned_to)).forEach(t => { if (!cards.some(c => c.id === t.assigned_to)) cards.push(card(t.assigned_to, t.assigned_name || 'Former member')); });
         cards.sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
         const max = Math.max(1, ...cards.map(c => c.n)); cards.forEach(c => { c.w = pct(c.n, max); });
-        res.render('bench_workload', { flash: takeFlash(req), cards, unassigned: card(null, 'Unassigned'), me: req.session.userID, stuckDays: L.STUCK_DAYS() });
+        res.render('bench_workload', { flash: takeFlash(req), cards, unassigned: card(null, 'Unassigned'), me: req.session.userID, isAdmin: req.session.admin === 1, stuckDays: L.STUCK_DAYS() });
     }));
 
     // ---------- fee report (managers) ----------

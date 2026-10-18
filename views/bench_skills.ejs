@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skills - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Skills</h1>
+    <p class="sub">Which repairs each person has been signed off on. <%= mentor ? 'Click a box to sign someone off, or click again to remove it.' : 'Mentors and managers do the sign-offs.' %></p>
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+    <div class="panel">
+        <% if (!people.length) { %><p class="hint">Nobody is on the Tech Bench yet.</p><% } else { %>
+        <div class="table-wrap"><table class="skilltbl">
+            <thead><tr><th>Person</th><% skills.forEach(k => { %><th class="c" title="<%= k.name %>"><%= ({ diag: 'Diag', screen: 'Screen', battery: 'Battery', keyboard: 'Keys', hinge: 'Hinge', camera: 'Camera', board: 'Board', power: 'Power', audio: 'Audio', mentor: 'Mentor*' })[k.key] %></th><% }) %><th></th></tr></thead>
+            <tbody><% people.forEach(p => { %><tr>
+                <td><%= p.name %></td>
+                <% skills.forEach(k => { const has = p.have.get(k.key); const can = mentor && (k.key !== 'mentor' || isAdmin) && (p.id !== me || isAdmin); %>
+                    <td class="c"><% if (can) { %><form action="/bench/skills/toggle" method="POST" style="margin:0"><input type="hidden" name="employee" value="<%= p.id %>"><input type="hidden" name="skill" value="<%= k.key %>"><button type="submit" class="cellbtn btn-ghost <%= has ? 'on' : '' %>" title="<%= has ? 'Signed off by ' + has.signed_name : 'Not signed off' %>" aria-label="<%= k.name %> for <%= p.name %>: <%= has ? 'signed off, click to remove' : 'not signed off, click to sign off' %>"><%= has ? '✓' : '' %></button></form>
+                    <% } else { %><span class="cellbtn <%= has ? 'on' : '' %>" title="<%= has ? 'Signed off by ' + has.signed_name : 'Not signed off' %>"><%= has ? '✓' : '' %></span><% } %></td>
+                <% }) %>
+                <td><a href="/bench/portfolio?id=<%= p.id %>">Portfolio</a></td>
+            </tr><% }) %></tbody>
+        </table></div>
+        <p class="hint">* A mentor can check off other students' repairs. Only a manager can make someone a mentor. Skills are matched to the parts on a ticket, so a screen repair needs the Screens skill.</p>
+        <% } %>
+    </div>
+    <div class="panel"><h3>What each column means</h3><ul class="plain"><% skills.forEach(k => { %><li><strong><%= k.name %></strong></li><% }) %></ul></div>
+<style>
+.skilltbl th.c,.skilltbl td.c{text-align:center}
+.cellbtn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--line,#cbd5e1);background:transparent;padding:0;margin:0;font-weight:700;color:var(--accent,#12843f);cursor:pointer}
+span.cellbtn{cursor:default}
+.cellbtn.on{background:var(--accent-soft,#dcfce7);border-color:var(--accent,#12843f)}
+</style>
+</body>
+</html>
