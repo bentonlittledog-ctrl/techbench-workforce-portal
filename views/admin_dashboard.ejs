@@ -40,12 +40,17 @@
                 <% if (isDistrict) { %>
                     <label for="roleSelect">Role</label>
                     <select id="roleSelect" name="is_admin" required>
-                        <option value="0">Employee (timesheet only)</option>
-                        <option value="1">Location Coordinator (oversees the school / program chosen above)</option>
-                        <option value="3">Student General Manager (head student of the program chosen above)</option>
-                        <option value="4">Student Manager (limited, for the program chosen above)</option>
-                        <option value="2">District administrator (everything, no site needed)</option>
+                        <option value="0">Employee</option>
+                        <option value="1">Location Coordinator</option>
+                        <option value="3">Student General Manager</option>
+                        <option value="4">Student Manager</option>
+                        <option value="2">District administrator</option>
                     </select>
+                    <p class="hint" id="roleDescAdd" style="margin-top:6px;"></p>
+                <script>
+                (function(){ var d={"0": "Clocks in and uses the portal: their own timecards, schedule, Learn guides and the Tech Bench. No supervisor pages.", "1": "A teacher in charge of the programs at a school (for example Work Based Services or IT). Full access to the people, timecards and accounts in the school and programs assigned below.", "3": "The head student of a program, in charge of the whole program. Can approve overtime and missed-hours requests, set shift limits and schedules, reset passwords and see pay for their program. Cannot add or remove accounts, edit timecards or change pay.", "4": "A student who manages a specific program or task and is a direct point of contact. Can approve overtime and missed-hours requests, set shift limits and schedules, and reset passwords for their program. No access to pay, timecard editing, or adding and removing accounts.", "2": "Full access to the entire portal: every school and program, pay rates, roles, and the district pages."}, s=document.getElementById('roleSelect'), o=document.getElementById('roleDescAdd');
+                  function u(){ o.textContent=d[s.value]||''; } s.addEventListener('change',u); u(); })();
+                </script>
                 <% } else { %>
                     <input type="hidden" name="is_admin" value="0">
                     <p class="hint" style="margin-top:14px;">New accounts you add are employees in the site / program above.</p>
