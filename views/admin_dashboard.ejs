@@ -9,7 +9,9 @@
 <body>
     <%- include('partials/nav') %>
     <h1>Admin dashboard</h1>
-    <p class="sub">Accounts and shifts for the sites and programs you manage. Your own shifts are included.</p>
+    <p class="sub">Accounts and shifts for the sites and programs you manage.</p>
+
+    <%- include('partials/clock_card') %>
 
     <% if (canAdd) { %>
     <div class="grid2">
@@ -22,10 +24,8 @@
                 <input type="text" id="username" name="username" autocapitalize="none" required>
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
-                <% if (seePay) { %>
                 <label for="hourly_rate">Hourly rate ($/hr)</label>
                 <input type="number" id="hourly_rate" name="hourly_rate" step="0.01" required>
-                <% } %>
 
                 <label for="siteSelect">School / location</label>
                 <select id="siteSelect" name="site_id">
@@ -41,7 +41,9 @@
                     <label for="roleSelect">Role</label>
                     <select id="roleSelect" name="is_admin" required>
                         <option value="0">Employee (timesheet only)</option>
-                        <option value="1">Manager (manages the site / program chosen above)</option>
+                        <option value="1">Location Coordinator (oversees the school / program chosen above)</option>
+                        <option value="3">Student General Manager (head student of the program chosen above)</option>
+                        <option value="4">Student Manager (limited, for the program chosen above)</option>
                         <option value="2">District administrator (everything, no site needed)</option>
                     </select>
                 <% } else { %>
@@ -59,7 +61,7 @@
                 <select id="removeSelect" name="employeeId" required>
                     <option value="">Choose an account</option>
                     <% users.forEach(user => { %>
-                        <option value="<%= user.id %>"><%= user.name %> (<%= user.username %>) - <%= user.is_district ? 'District administrator' : (user.is_admin ? 'Manager' : 'Employee') %></option>
+                        <option value="<%= user.id %>"><%= user.name %> (<%= user.username %>) - <%= user.is_district ? 'District administrator' : (user.is_admin ? 'Supervising' : 'Employee') %></option>
                     <% }) %>
                 </select>
                 <p class="hint" style="margin-top:12px;">This permanently deletes the account and its timecards.</p>

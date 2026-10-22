@@ -2,8 +2,9 @@
 // Every change is written to the audit log. Mounted from index.js.
 const { visibleSql, canManage, allowedUnits } = require('./scope');
 
-const ROLE_NAMES = ['Employee', 'Manager', 'District administrator'];
-const roleOf = e => (e.is_district ? 2 : (e.is_admin ? 1 : 0));
+const R = require('./roles');
+const ROLE_NAMES = R.NAMES;
+const isMgr = c => R.SUPERVISING.includes(c);   // roles that oversee areas (have scopes)
 
 module.exports = function (app, getDb, wrap) {
     let ready = null;
@@ -50,12 +51,6 @@ module.exports = function (app, getDb, wrap) {
         return { memberships, scopes };
     }
 
-    async function supAccess(db, id) {
-        const S = require('./supervisor');
-        const a = await S.load(db, id);
-        return { configured: a.configured, role: a.role || 'full', perms: [...a.perms], keys: S.KEYS, roles: Object.entries(S.ROLES).map(([k, r]) => ({ key: k, name: r.name, perms: r.perms, locked: !!r.locked })) };
-    }
-
     // ---------- List ----------
     app.get('/admin/accounts', wrap(async (req, res) => {
         if (needAdmin(req, res)) return;
@@ -73,13 +68,14 @@ module.exports = function (app, getDb, wrap) {
         const sc = await db.all(
             `SELECT sc.employee_id, s.name AS site_name, COALESCE(p.name, 'All programs') AS program_name FROM scopes sc
              JOIN sites s ON s.id = sc.site_id LEFT JOIN programs p ON p.id = sc.program_id WHERE sc.employee_id IN (${where})`, ids);
+        const codes = await R.codesFor(db, people);
         const by = {};
         [...m, ...sc].forEach(r => { (by[r.employee_id] = by[r.employee_id] || []).push(r.site_name + ' / ' + r.program_name); });
         res.render('admin_accounts', {
             flash: takeFlash(req),
             people: people.map(p => ({
-                id: p.id, name: p.name, username: p.username, rate: req.sup.can('rates') ? Number(p.hourly_rate || 0).toFixed(2) : '', seePay: req.sup.can('rates'),
-                role: roleOf(p), roleName: ROLE_NAMES[roleOf(p)], areas: by[p.id] || [], self: p.id === req.session.userID
+                id: p.id, name: p.name, username: p.username, rate: Number(p.hourly_rate || 0).toFixed(2), seePay: req.sup.can('pay_view'),
+                role: codes.get(p.id), roleName: ROLE_NAMES[codes.get(p.id)], areas: by[p.id] || [], self: p.id === req.session.userID
             }))
         });
     }));
@@ -93,7 +89,7 @@ module.exports = function (app, getDb, wrap) {
         await require('./profile').ensure(db);
         const emp = await db.get('SELECT id, name, username, hourly_rate, is_admin, is_district, student_id, periods FROM employees WHERE id = ?', [id]);
         if (!emp) return res.redirect('/admin/accounts');
-        const role = roleOf(emp);
+        const role = await R.codeOf(db, emp);
         const isSelf = id === req.session.userID;
         const isDistrict = req.session.district === 1;
         const { memberships, scopes } = await assignmentsOf(db, id);
@@ -102,21 +98,20 @@ module.exports = function (app, getDb, wrap) {
         const units = await allowedUnits(db, req.session);
         const unitSet = new Set(units.map(u => u.value));
         let addOptions = units.map(u => ({ value: u.value, label: u.label }));
-        if (role === 1 && isDistrict) {
+        if (role === 1 && isDistrict) {   // only Location Coordinators can hold a whole school
             const sites = await db.all('SELECT id, name FROM sites ORDER BY name');
             addOptions = sites.map(s => ({ value: s.id + ':ALL', label: s.name + ' / All programs' })).concat(addOptions);
         }
         res.render('admin_account_edit', {
             flash: takeFlash(req),
             emp: { id: emp.id, name: emp.name, username: emp.username, studentId: emp.student_id || '', periods: emp.periods || '', rate: Number(emp.hourly_rate || 0).toFixed(2) },
-            role, roleName: ROLE_NAMES[role], isSelf, isDistrict, seePay: req.sup.can('rates'),
-            supAccess: (isDistrict && role === 1 && !isSelf) ? await supAccess(db, id) : null,
-            personal: role === 1 ? memberships.map(a => ({ ...a, removable: isDistrict || unitSet.has(a.site_id + ':' + a.program_id) })) : null,
+            role, roleName: ROLE_NAMES[role], isSelf, isDistrict, isMgr: isMgr(role), roleNames: ROLE_NAMES, seePay: req.sup.can('pay_view'),
             memberships: memberships.map(a => ({ ...a, removable: unitSet.has(a.site_id + ':' + a.program_id) })),
             scopes: scopes.map(a => ({ ...a, removable: isDistrict })),
             permRows: await require('./perms').rowsFor(db, emp, req.session),
             shiftLimit: role === 2 ? null : { own: await require('./overtime').ownLimit(db, id), def: (await require('./autoclock').getSettings(db)).maxHours },
             sched: role === 0 ? { value: await require('./schedule').getAssignment(db, id), sites: await db.all('SELECT id, name FROM sites ORDER BY name'), own: memberships.map(m => m.site_name).filter((n, i, a) => a.indexOf(n) === i).join(', ') } : null,
+            personal: isMgr(role) ? memberships.map(a => ({ ...a, removable: isDistrict || unitSet.has(a.site_id + ':' + a.program_id) })) : null,
             addOptions: (role === 2 || isSelf) ? [] : addOptions
         });
     }));
@@ -154,7 +149,7 @@ module.exports = function (app, getDb, wrap) {
         if (!emp) return res.redirect('/admin/accounts');
         const isSelf = id === req.session.userID;
         const isDistrict = req.session.district === 1;
-        const oldRole = roleOf(emp);
+        const oldRole = await R.codeOf(db, emp);
 
         const name = String(req.body.name || '').trim().replace(/\s+/g, ' ');
         const username = String(req.body.username || '').trim();
@@ -164,7 +159,7 @@ module.exports = function (app, getDb, wrap) {
         if (clash) { flash(req, 'That username is already taken.', true); return res.redirect(back(id)); }
 
         let rate = Number(emp.hourly_rate || 0);
-        if (!isSelf && req.body.hourly_rate !== undefined && req.sup.can('rates')) {
+        if (!isSelf && isDistrict && req.body.hourly_rate !== undefined) {   // only district administrators change pay rates
             const r = parseFloat(req.body.hourly_rate);
             if (!isFinite(r) || r < 0 || r > 500) { flash(req, 'Enter an hourly rate between 0 and 500.', true); return res.redirect(back(id)); }
             rate = Math.round(r * 100) / 100;
@@ -176,7 +171,7 @@ module.exports = function (app, getDb, wrap) {
 
         let newRole = oldRole;
         if (isDistrict && !isSelf && req.body.role !== undefined) {
-            newRole = Math.min(Math.max(parseInt(req.body.role, 10) || 0, 0), 2);
+            newRole = Math.min(Math.max(parseInt(req.body.role, 10) || 0, 0), 4);
         }
         if (oldRole === 2 && newRole !== 2) {
             const others = await db.get('SELECT COUNT(*) AS n FROM employees WHERE is_district = 1 AND id != ?', [id]);
@@ -198,25 +193,31 @@ module.exports = function (app, getDb, wrap) {
             await db.run('UPDATE employees SET name = ?, username = ?, hourly_rate = ?, is_admin = ?, is_district = ?, student_id = ?, periods = ? WHERE id = ?',
                 [name, username, rate, newRole >= 1 ? 1 : 0, newRole === 2 ? 1 : 0, studentId, periods, id]);
 
-            // Keep the assignment rules consistent: only employees have site/program memberships; managers have scopes.
+            // Keep the assignment rules consistent: employees have site/program memberships; supervising roles have scopes.
             if (newRole !== oldRole) {
-                if (oldRole === 0 && newRole === 1) {
+                const oldM = isMgr(oldRole), newM = isMgr(newRole);
+                if (oldRole === 0 && newM) {
                     await db.run('INSERT INTO scopes (employee_id, site_id, program_id) SELECT employee_id, site_id, program_id FROM memberships WHERE employee_id = ?', [id]);
-                    await db.run('DELETE FROM memberships WHERE employee_id = ?', [id]);
+                    if (newRole === 1) await db.run('DELETE FROM memberships WHERE employee_id = ?', [id]);   // students keep where they work
                 } else if (oldRole === 0 && newRole === 2) {
                     await db.run('DELETE FROM memberships WHERE employee_id = ?', [id]);
-                } else if (oldRole === 1 && newRole === 0) {
+                } else if (oldM && newRole === 0) {
                     await db.run('INSERT OR IGNORE INTO memberships (employee_id, site_id, program_id) SELECT employee_id, site_id, program_id FROM scopes WHERE employee_id = ? AND program_id IS NOT NULL', [id]);
                     const dropped = await db.get('SELECT COUNT(*) AS n FROM scopes WHERE employee_id = ? AND program_id IS NULL', [id]);
                     await db.run('DELETE FROM scopes WHERE employee_id = ?', [id]);
-                    if (dropped.n) note = ' Site-wide manager access was removed. Add the site and program this employee works in.';
-                } else if (oldRole === 1 && newRole === 2) {
+                    if (dropped.n) note = ' Site-wide access was removed. Add the site and program this employee works in.';
+                } else if (oldM && newRole === 2) {
                     await db.run('DELETE FROM scopes WHERE employee_id = ?', [id]);
-                } else if (oldRole === 2 && newRole === 1) {
-                    note = ' Add the site or sites this manager oversees, or they will not see anyone.';
+                } else if (oldRole === 2 && newM) {
+                    note = ' Add the school or program this person oversees, or they will not see anyone.';
                 } else if (oldRole === 2 && newRole === 0) {
                     note = ' Add the site and program this employee works in.';
+                } else if (oldM && newM && R.isStudent(newRole)) {
+                    const dropped = await db.get('SELECT COUNT(*) AS n FROM scopes WHERE employee_id = ? AND program_id IS NULL', [id]);
+                    await db.run('DELETE FROM scopes WHERE employee_id = ? AND program_id IS NULL', [id]);
+                    if (dropped.n) note = ' Student roles are limited to specific programs, so the all-programs access was removed. Add the program they run.';
                 }
+                await R.setRole(db, req.session.userID, id, newRole);
             }
             await audit(db, req, { id, name }, 'ACCOUNT_EDIT', changes.join('; '));
             await db.run('COMMIT');
@@ -237,7 +238,7 @@ module.exports = function (app, getDb, wrap) {
         if (!id || id === req.session.userID || !(await canManage(db, req.session, id))) return res.redirect('/admin/accounts');
         const emp = await db.get('SELECT id, name, is_admin, is_district FROM employees WHERE id = ?', [id]);
         if (!emp) return res.redirect('/admin/accounts');
-        const role = roleOf(emp);
+        const role = await R.codeOf(db, emp);
         if (role === 2) { flash(req, 'District administrators see everything and need no assignment.', true); return res.redirect(back(id)); }
 
         const value = String(req.body.unit || '');
@@ -245,14 +246,15 @@ module.exports = function (app, getDb, wrap) {
         const site = await db.get('SELECT id, name FROM sites WHERE id = ?', [parseInt(siteId, 10)]);
         if (!site) { flash(req, 'Choose a school and program.', true); return res.redirect(back(id)); }
 
-        if (role === 1 && req.body.side === 'works') {
-            // A supervisor's personal side: where they work and clock in, like any employee
-            const chosen = (await allowedUnits(db, req.session)).find(u => u.value === value);
-            if (!chosen) { flash(req, 'You can only assign people to areas you manage.', true); return res.redirect(back(id)); }
-            await db.run('INSERT OR IGNORE INTO memberships (employee_id, site_id, program_id) VALUES (?, ?, ?)', [id, chosen.site_id, chosen.program_id]);
-            await audit(db, req, emp, 'ACCOUNT_ADD_ASSIGNMENT', 'works in ' + chosen.label + ' (personal side)');
-        } else if (role === 1) {
+        if (isMgr(role) && req.body.side === 'works') {
+            // Where a supervising person works and clocks in, like any employee (this is also how their Location Coordinator sees them)
+            const chosenW = (await allowedUnits(db, req.session)).find(u => u.value === value);
+            if (!chosenW) { flash(req, 'You can only assign people to areas you manage.', true); return res.redirect(back(id)); }
+            await db.run('INSERT OR IGNORE INTO memberships (employee_id, site_id, program_id) VALUES (?, ?, ?)', [id, chosenW.site_id, chosenW.program_id]);
+            await audit(db, req, emp, 'ACCOUNT_ADD_ASSIGNMENT', 'works in ' + chosenW.label);
+        } else if (isMgr(role)) {
             if (req.session.district !== 1) return res.redirect('/admin/accounts');
+            if (R.isStudent(role) && prog === 'ALL') { flash(req, 'Student roles are limited to a specific program, not all programs.', true); return res.redirect(back(id)); }
             const programId = prog === 'ALL' ? null : parseInt(prog, 10);
             let progName = 'All programs';
             if (programId !== null) {

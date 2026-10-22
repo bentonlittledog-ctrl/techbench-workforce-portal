@@ -57,8 +57,8 @@ app.use(require('./security').forceChange(() => db));
 // 2.24 Administrator on/off switches (blocks pages an account has been restricted from)
 app.use(require('./perms').middleware(() => db));
 
-// 2.245 Supervisor panel permissions (what each supervisor may open)
-app.use(require('./supervisor').middleware(() => db));
+// 2.245 Role permissions (what a Location Coordinator or student manager may open)
+app.use(require('./roles').middleware(() => db));
 
 // 2.25 Menu information available to every page
 app.use(wrap(async (req, res, next) => {
@@ -75,7 +75,8 @@ app.use(wrap(async (req, res, next) => {
     res.locals.nav = {
         resources, bench, benchReady,
         benchManage: !offs.has('bench_manage') && !offs.has('bench'), canRequest: !offs.has('requests'),
-        sp: Object.fromEntries(require('./supervisor').ALL.map(k => [k, !!(req.sup && req.sup.can(k))])), student: !!(req.sup && req.sup.student),
+        sp: Object.fromEntries(require('./roles').KEYS.map(k => [k, !!(req.sup && req.sup.can(k))])),
+        roleName: req.sup && req.sup.code ? require('./roles').NAMES[req.sup.code] : '',
         loggedIn: !!req.session.userID,
         admin: req.session.admin === 1,
         district: req.session.district === 1,
@@ -201,10 +202,6 @@ app.post('/login', wrap(async (req, res) => {
         await S.loginSucceeded(db, username);
         // A fresh session id at sign-in, so an id that existed before the login can never be reused
         await new Promise((resolve, reject) => req.session.regenerate(err => err ? reject(err) : resolve()));
-        if (await require('./supervisor').isRetired(db, user.id)) {
-            await new Promise(r => req.session.destroy(() => r()));
-            return res.render('login', { error: 'That login has been retired. Please sign in with your own personal account.' });
-        }
         req.session.userID = user.id;
         req.session.name = user.name;
         req.session.admin = user.is_admin;
@@ -215,13 +212,13 @@ app.post('/login', wrap(async (req, res) => {
     res.render('login', { error: badLogin });
 }));
 
-// 6.1 Supervisor panel - shifts for the people this supervisor oversees (plus their own)
-app.get('/supervisor', wrap(async (req, res) => {
+// 6.0 Unified portal dashboard
+app.get('/dashboard', wrap(async (req, res) => {
     if (!req.session.userID) return res.redirect('/');
-    if (req.session.admin !== 1) return res.redirect('/dashboard');
-    {
+
+    if (req.session.admin === 1) {
+        // 6.1 Master admin view - every log in the system
         const scope = visibleSql(req.session, 'employees');
-        scope.sql = '(' + scope.sql + ' OR employees.id = ?)'; scope.params = [...scope.params, req.session.userID];
         const rawLogs = await db.all(`
             SELECT logs.id, logs.action, datetime(logs.timestamp, 'localtime') AS timestamp,
                    employees.name, employees.hourly_rate
@@ -267,7 +264,36 @@ app.get('/supervisor', wrap(async (req, res) => {
         const employeeList = (await manageableAccounts(db, req.session)).filter(u => u.id !== req.session.userID);
         const units = await allowedUnits(db, req.session);
 
+        // Supervisors, managers and district staff clock in like everyone else
+        let clock = null;
+        if (!(req.permDenied && req.permDenied.has('clock'))) {
+            const me = await db.get('SELECT hourly_rate FROM employees WHERE id = ?', [req.session.userID]);
+            if (me) {
+                const mine = await db.all(
+                    "SELECT id, employee_id, action, datetime(timestamp, 'localtime') AS timestamp FROM logs WHERE employee_id = ? AND archived = 0 ORDER BY timestamp ASC, id ASC",
+                    [req.session.userID]);
+                const newest = await db.get('SELECT action, timestamp FROM logs WHERE employee_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1', [req.session.userID]);
+                let sinceMs = null;
+                if (newest && newest.action === 'CLOCK_IN') {
+                    const t = Date.parse(String(newest.timestamp).replace(' ', 'T') + 'Z');
+                    if (!isNaN(t)) sinceMs = t;
+                }
+                const err = req.session.error || null;
+                delete req.session.error;
+                clock = {
+                    status: newest && newest.action === 'CLOCK_IN' ? 'CLOCK_IN' : 'CLOCK_OUT',
+                    sinceMs,
+                    hours: pairShifts(mine, me.hourly_rate).reduce((t, s) => t + parseFloat(s.shift.hours), 0).toFixed(2),
+                    autoNotice: await require('./autoclock').noticeFor(db, req.session.userID).catch(() => null),
+                    shiftLimit: await require('./overtime').limitFor(db, req.session.userID).catch(() => null),
+                    shiftLimitText: require('./overtime').hrsText(await require('./overtime').limitFor(db, req.session.userID).catch(() => 8)),
+                    error: err
+                };
+            }
+        }
+
         return res.render('admin_dashboard', {
+            clock,
             name: req.session.name,
             shifts: pairedShifts,
             totalHours: totalBillableHours.toFixed(2),
@@ -276,14 +302,9 @@ app.get('/supervisor', wrap(async (req, res) => {
             units: units,
             isDistrict: req.session.district === 1,
             canAdd: req.sup.can('accounts_addremove'),
-            seePay: req.sup.can('rates')
+            seePay: req.sup.can('pay_view')
         });
     }
-}));
-
-// 6.0 Personal dashboard - the same for everyone (supervisors get the Supervisor panel from the menu)
-app.get('/dashboard', wrap(async (req, res) => {
-    if (!req.session.userID) return res.redirect('/');
 
     // 6.2 Employee view - personal logs split by archive status
     const profile = await db.get('SELECT hourly_rate FROM employees WHERE id = ?', [req.session.userID]);
@@ -344,6 +365,7 @@ app.get('/dashboard', wrap(async (req, res) => {
         sinceMs: sinceMs,
         autoNotice: autoNotice,
         shiftLimit: await require('./overtime').limitFor(db, req.session.userID).catch(() => null),
+        shiftLimitText: require('./overtime').hrsText(await require('./overtime').limitFor(db, req.session.userID).catch(() => 8)),
         error: error
     });
 }));
@@ -404,32 +426,34 @@ app.post('/admin/users/add', wrap(async (req, res) => {
     const unit = req.body.unit || (req.body.site_id + ':' + req.body.program_id);
     const isDistrict = req.session.district === 1;
 
-    if (!username || !name || typeof password !== 'string' || !password) return res.redirect('/supervisor');
+    if (!username || !name || typeof password !== 'string' || !password) return res.redirect('/dashboard');
     // New accounts get a temporary password, so it has to meet the same rules as any other
     if (require('./security').passwordProblem(password, username)) {
         req.session.error = 'That password was not accepted: ' + require('./security').passwordProblem(password, username);
-        return res.redirect('/supervisor');
+        return res.redirect('/dashboard');
     }
 
     // 0 = employee, 1 = manager, 2 = district administrator.
     // Only district administrators can create managers or other district administrators.
-    const role = isDistrict ? Math.min(Math.max(parseInt(is_admin, 10) || 0, 0), 2) : 0;
+    const role = isDistrict ? Math.min(Math.max(parseInt(is_admin, 10) || 0, 0), 4) : 0;   // 0 employee, 1 location coordinator, 2 district, 3 student general manager, 4 student manager
     const chosen = (await allowedUnits(db, req.session)).find(u => u.value === unit);
-    if (role < 2 && !chosen) return res.redirect('/supervisor');
+    if (role !== 2 && !chosen) return res.redirect('/dashboard');
 
     const hash = await bcrypt.hash(password, 10);
     await db.run('BEGIN');
     try {
         const added = await db.run(
             'INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin, is_district) VALUES (?, ?, ?, ?, ?, ?)',
-            [username, hash, name, (req.sup.can('rates') ? (parseFloat(hourly_rate) || 0) : 0), role >= 1 ? 1 : 0, role === 2 ? 1 : 0]
+            [username, hash, name, parseFloat(hourly_rate) || 0, role >= 1 ? 1 : 0, role === 2 ? 1 : 0]
         );
         if (role === 0) {
             await db.run('INSERT INTO memberships (employee_id, site_id, program_id) VALUES (?, ?, ?)',
                 [added.lastID, chosen.site_id, chosen.program_id]);
-        } else if (role === 1) {
+        } else if (role !== 2) {
             await db.run('INSERT INTO scopes (employee_id, site_id, program_id) VALUES (?, ?, ?)',
                 [added.lastID, chosen.site_id, chosen.program_id]);
+            await require('./roles').setRole(db, req.session.userID, added.lastID, role);
+            if (role >= 3) await db.run('INSERT OR IGNORE INTO memberships (employee_id, site_id, program_id) VALUES (?, ?, ?)', [added.lastID, chosen.site_id, chosen.program_id]);   // students also work in their program
         }
         await require('./security').setMustChange(db, added.lastID, true, req.session.name);   // they pick their own password at first sign-in
         await db.run('COMMIT');
@@ -437,7 +461,7 @@ app.post('/admin/users/add', wrap(async (req, res) => {
         await db.run('ROLLBACK');
         console.error('Add user failed:', err.message);
     }
-    res.redirect('/supervisor');
+    res.redirect('/dashboard');
 }));
 
 // 6.7 Admin panel - remove an account (only accounts inside the admin's own areas)
@@ -446,8 +470,8 @@ app.post('/admin/users/remove', wrap(async (req, res) => {
     const employeeId = parseInt(req.body.employeeId, 10);
 
     // Never allow deleting your own active account
-    if (!employeeId || employeeId === req.session.userID) return res.redirect('/supervisor');
-    if (!(await canManage(db, req.session, employeeId))) return res.redirect('/supervisor');
+    if (!employeeId || employeeId === req.session.userID) return res.redirect('/dashboard');
+    if (!(await canManage(db, req.session, employeeId))) return res.redirect('/dashboard');
 
     // Remove everything tied to the account together, or nothing at all
     await db.run('BEGIN');
@@ -462,7 +486,7 @@ app.post('/admin/users/remove', wrap(async (req, res) => {
         await db.run('ROLLBACK');
         throw err;
     }
-    res.redirect('/supervisor');
+    res.redirect('/dashboard');
 }));
 
 require('./extras')(app, () => db, wrap);
@@ -487,7 +511,6 @@ require('./autoclock')(app, () => db, wrap);
 require('./schedule')(app, () => db, wrap);
 require('./overtime')(app, () => db, wrap);
 require('./security').mount(app, () => db, wrap);
-require('./supervisor').mount(app, () => db, wrap);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)

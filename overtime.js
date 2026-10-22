@@ -6,6 +6,8 @@ const TOLERANCE_MIN = 5;
 const pad = n => String(n).padStart(2, '0');
 const utcStamp = d => d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
 const parseUtc = s => { const t = Date.parse(String(s).replace(' ', 'T') + 'Z'); return isNaN(t) ? null : t; };
+const MIN_LIMIT_MIN = 10, MAX_LIMIT_MIN = 960;   // shift limits are set in whole minutes: 10 minutes to 16 hours
+const hrsText = h => { const m = Math.round(h * 60); if (m < 60) return m + ' minutes'; if (m % 60 === 0) return (m / 60) + (m === 60 ? ' hour' : ' hours'); return human(m); };
 const human = min => { const h = Math.floor(min / 60), m = Math.round(min % 60); return (h ? h + ' h ' : '') + m + ' min'; };
 const hhmm = min => Math.floor(min / 60) + ':' + pad(Math.round(min % 60));
 
@@ -25,7 +27,7 @@ const audit = (db, actorId, actorName, targetId, targetName, action, details) =>
 
 // ----- limits -----
 const limitFor = (db, id) => require('./autoclock').limitFor(db, id);
-async function ownLimit(db, id) { await ensure(db); const r = await db.get('SELECT value FROM app_settings WHERE key = ?', ['shiftlimit_' + id]); const v = r ? parseFloat(r.value) : NaN; return v >= 1 && v <= 16 ? v : null; }
+async function ownLimit(db, id) { await ensure(db); const r = await db.get('SELECT value FROM app_settings WHERE key = ?', ['shiftlimit_' + id]); const v = r ? parseFloat(r.value) : NaN; return v >= MIN_LIMIT_MIN / 60 - 1e-9 && v <= 16 ? v : null; }
 async function setLimit(db, who, id, hours) {
     await ensure(db);
     if (hours == null) await db.run('DELETE FROM app_settings WHERE key = ?', ['shiftlimit_' + id]);
@@ -49,14 +51,14 @@ async function decide(db, employeeId, now = new Date()) {
     return {
         stamp: utcStamp(new Date(inMs + limitMs)),
         over: { inLogId: inRow.id, inTs: inRow.timestamp, cappedOut: utcStamp(new Date(inMs + limitMs)), actualOut: utcStamp(now), minutes: Math.round(overMin), limit },
-        note: 'You worked ' + human(Math.round(overMin)) + ' past your ' + limit + '-hour shift limit. ' + limit + ' hours were added to your timecard, and the extra ' + human(Math.round(overMin)) + ' was sent to your supervisor for approval.'
+        note: 'You worked ' + human(Math.round(overMin)) + ' past your ' + hrsText(limit) + ' shift limit. ' + hrsText(limit) + ' were added to your timecard, and the extra ' + human(Math.round(overMin)) + ' was sent to your supervisor for approval.'
     };
 }
 async function record(db, employeeId, outLogId, over, name) {
     await ensure(db);
     const r = await db.run('INSERT INTO overtime_requests (employee_id, in_log_id, out_log_id, in_ts, capped_out, actual_out, minutes, limit_hours) VALUES (?,?,?,?,?,?,?,?)',
         [employeeId, over.inLogId, outLogId, over.inTs, over.cappedOut, over.actualOut, over.minutes, over.limit]);
-    await audit(db, null, 'System', employeeId, name, 'OVERTIME_REQUESTED', 'Clocked out ' + human(over.minutes) + ' past the ' + over.limit + '-hour limit. Timecard credited with the limit; the extra time is waiting for approval.');
+    await audit(db, null, 'System', employeeId, name, 'OVERTIME_REQUESTED', 'Clocked out ' + human(over.minutes) + ' past the ' + hrsText(over.limit) + ' limit. Timecard credited with the limit; the extra time is waiting for approval.');
     return r.lastID;
 }
 
@@ -66,19 +68,19 @@ async function pendingFor(db, session) {
     const { visibleSql } = require('./scope'), v = visibleSql(session, 'e');
     return (await db.all(`SELECT o.*, e.name, datetime(o.in_ts, 'localtime') AS in_local, datetime(o.capped_out, 'localtime') AS capped_local, datetime(o.actual_out, 'localtime') AS actual_local
         FROM overtime_requests o JOIN employees e ON e.id = o.employee_id WHERE o.status = 'PENDING' AND ${v.sql} ORDER BY o.id ASC`, v.params))
-        .map(r => Object.assign(r, { human: human(r.minutes), hhmm: hhmm(r.minutes) }));
+        .map(r => Object.assign(r, { limitText: hrsText(r.limit_hours || 0), human: human(r.minutes), hhmm: hhmm(r.minutes) }));
 }
 async function reviewedFor(db, session, limit = 15) {
     await ensure(db);
     const { visibleSql } = require('./scope'), v = visibleSql(session, 'e');
     return (await db.all(`SELECT o.*, e.name, a.name AS reviewer, datetime(o.in_ts, 'localtime') AS in_local FROM overtime_requests o JOIN employees e ON e.id = o.employee_id
         LEFT JOIN employees a ON a.id = o.reviewed_by WHERE o.status != 'PENDING' AND ${v.sql} ORDER BY o.reviewed_at DESC, o.id DESC LIMIT ${parseInt(limit, 10)}`, v.params))
-        .map(r => Object.assign(r, { human: human(r.minutes), approvedHuman: r.approved_minutes != null ? human(r.approved_minutes) : '' }));
+        .map(r => Object.assign(r, { limitText: hrsText(r.limit_hours || 0), human: human(r.minutes), approvedHuman: r.approved_minutes != null ? human(r.approved_minutes) : '' }));
 }
 async function mineFor(db, employeeId, limit = 10) {
     await ensure(db);
     return (await db.all(`SELECT o.*, datetime(o.in_ts, 'localtime') AS in_local FROM overtime_requests o WHERE o.employee_id = ? ORDER BY o.id DESC LIMIT ${parseInt(limit, 10)}`, [employeeId]))
-        .map(r => Object.assign(r, { human: human(r.minutes), approvedHuman: r.approved_minutes != null ? human(r.approved_minutes) : '' }));
+        .map(r => Object.assign(r, { limitText: hrsText(r.limit_hours || 0), human: human(r.minutes), approvedHuman: r.approved_minutes != null ? human(r.approved_minutes) : '' }));
 }
 
 // Result codes: ok | own | scope | gone | stale | conflict
@@ -114,7 +116,7 @@ async function deny(db, session, id) {
     if (!(await canManage(db, session, r.employee_id))) return 'scope';
     await db.run("UPDATE overtime_requests SET status = 'DENIED', approved_minutes = 0, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?", [session.userID, id]);
     const name = (await db.get('SELECT name FROM employees WHERE id = ?', [r.employee_id])).name;
-    await audit(db, session.userID, session.name, r.employee_id, name, 'OVERTIME_DENIED', 'Denied ' + human(r.minutes) + ' of overtime. The timecard keeps the ' + r.limit_hours + '-hour limit.');
+    await audit(db, session.userID, session.name, r.employee_id, name, 'OVERTIME_DENIED', 'Denied ' + human(r.minutes) + ' of overtime. The timecard keeps the ' + hrsText(r.limit_hours) + ' limit.');
     return 'ok';
 }
 
@@ -133,18 +135,22 @@ function mount(app, getDb, wrap) {
     // Set or clear one person's shift limit (from their Edit account page).
     app.post('/admin/accounts/shiftlimit', wrap(async (req, res) => {
         if (needAdmin(req, res)) return;
-        const db = getDb(), id = parseInt((req.body || {}).id, 10), raw = String((req.body || {}).hours || '').trim();
+        const db = getDb(), id = parseInt((req.body || {}).id, 10), raw = String((req.body || {}).minutes || '').trim();
         const to = () => res.redirect('/admin/accounts/edit?id=' + id);
         if (!id || !(await canManage(db, req.session, id))) return res.redirect('/admin/accounts');
         const emp = await db.get('SELECT name FROM employees WHERE id = ?', [id]);
         let hours = null;
-        if (raw !== '') { hours = Math.round(parseFloat(raw) * 4) / 4; if (!(hours >= 1 && hours <= 16)) { req.session.flash = { msg: 'Enter a shift limit from 1 to 16 hours, or leave it blank to use the district default.', bad: true }; return to(); } }
+        if (raw !== '') {
+            const mins = Math.round(parseFloat(raw));
+            if (!(mins >= MIN_LIMIT_MIN && mins <= MAX_LIMIT_MIN)) { req.session.flash = { msg: 'Enter a shift limit from ' + MIN_LIMIT_MIN + ' to ' + MAX_LIMIT_MIN + ' minutes (for example 50), or leave it blank to use the district default.', bad: true }; return to(); }
+            hours = mins / 60;
+        }
         await setLimit(db, req.session.name, id, hours);
-        await audit(db, req.session.userID, req.session.name, id, emp.name, 'SHIFT_LIMIT', hours == null ? 'Back to the district default limit' : 'Shift limit set to ' + hours + ' hours');
-        req.session.flash = { msg: hours == null ? emp.name + ' now uses the district default shift limit.' : 'Saved. ' + emp.name + "'s shift limit is " + hours + ' hours.' };
+        await audit(db, req.session.userID, req.session.name, id, emp.name, 'SHIFT_LIMIT', hours == null ? 'Back to the district default limit' : 'Shift limit set to ' + hrsText(hours));
+        req.session.flash = { msg: hours == null ? emp.name + ' now uses the district default shift limit.' : 'Saved. ' + emp.name + "'s shift limit is " + hrsText(hours) + '.' };
         to();
     }));
 }
 
 module.exports = mount;
-Object.assign(module.exports, { ensure, limitFor, ownLimit, setLimit, decide, record, pendingFor, reviewedFor, mineFor, approve, deny, TOLERANCE_MIN, human });
+Object.assign(module.exports, { ensure, limitFor, ownLimit, setLimit, decide, record, pendingFor, reviewedFor, mineFor, approve, deny, TOLERANCE_MIN, human, hrsText, MIN_LIMIT_MIN, MAX_LIMIT_MIN });

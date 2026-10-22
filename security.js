@@ -104,6 +104,37 @@ async function setMustChange(db, id, on, who) {
     if (on) await db.run('INSERT OR REPLACE INTO app_settings (key, value, updated_at, updated_by) VALUES (?,?,CURRENT_TIMESTAMP,?)', [flagKey(id), '1', who || '']);
     else await db.run('DELETE FROM app_settings WHERE key = ?', [flagKey(id)]);
 }
+// ---------- Password age (every 3 months) and no reuse of the last 2 passwords ----------
+const MAX_AGE_DAYS = 90;      // a password must be changed at least this often
+const NO_REUSE = 2;           // a new password cannot match the current one or the one before it (the last 2 on file)
+const dateKey = id => 'pwdate_' + id;
+async function ensureHistory(db) {
+    await ensure(db);
+    await db.exec('CREATE TABLE IF NOT EXISTS password_history (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, hash TEXT NOT NULL, at TEXT DEFAULT CURRENT_TIMESTAMP)');
+}
+// When a password is replaced: remember the old one and restart the 3-month clock.
+async function recordChange(db, id, oldHash, now = new Date()) {
+    await ensureHistory(db);
+    if (oldHash) await db.run('INSERT INTO password_history (employee_id, hash) VALUES (?, ?)', [id, oldHash]);
+    await db.run('DELETE FROM password_history WHERE employee_id = ? AND id NOT IN (SELECT id FROM password_history WHERE employee_id = ? ORDER BY id DESC LIMIT 5)', [id, id]);
+    await db.run('INSERT OR REPLACE INTO app_settings (key, value, updated_at, updated_by) VALUES (?,?,CURRENT_TIMESTAMP,?)', [dateKey(id), now.toISOString(), 'System']);
+}
+// Was this password used recently? (current hash plus the most recent older ones, NO_REUSE in all)
+async function recentlyUsed(db, id, plain, currentHash) {
+    await ensureHistory(db);
+    const hashes = [currentHash].concat((await db.all('SELECT hash FROM password_history WHERE employee_id = ? ORDER BY id DESC LIMIT ?', [id, NO_REUSE - 1])).map(r => r.hash));
+    for (const h of hashes) if (h && await bcrypt.compare(plain, h)) return true;
+    return false;
+}
+// Is this password more than 3 months old? Accounts with no date yet start their clock the first time they are checked.
+async function expired(db, id, now = new Date()) {
+    await ensureHistory(db);
+    const r = await db.get('SELECT value FROM app_settings WHERE key = ?', [dateKey(id)]);
+    if (!r) { await db.run('INSERT OR REPLACE INTO app_settings (key, value, updated_at, updated_by) VALUES (?,?,CURRENT_TIMESTAMP,?)', [dateKey(id), now.toISOString(), 'System']); return false; }
+    const t = Date.parse(r.value);
+    return !isNaN(t) && now.getTime() - t > MAX_AGE_DAYS * 86400000;
+}
+
 // Sends someone who still has a starter or temporary password to the change-password page first.
 function forceChange(getDb) {
     const open = p => p === '/profile/password' || p === '/logout' || p === '/health' || p.startsWith('/status/');
@@ -112,6 +143,12 @@ function forceChange(getDb) {
             if (!req.session || !req.session.userID || open(req.path)) return next();
             if (req.session.pwOK !== true) {
                 if (await mustChange(getDb(), req.session.userID)) return res.redirect('/profile/password?first=1');
+                if (await expired(getDb(), req.session.userID)) {
+                    await setMustChange(getDb(), req.session.userID, true, 'System');
+                    await getDb().run('INSERT INTO audit_log (actor_id, actor_name, target_id, target_name, action, details, reason) VALUES (NULL, ?, ?, ?, ?, ?, ?)',
+                        ['System', req.session.userID, req.session.name || '', 'PASSWORD_EXPIRED', 'Password is more than ' + MAX_AGE_DAYS + ' days old. A new one is required.', '']).catch(() => {});
+                    return res.redirect('/profile/password?first=1&expired=1');
+                }
                 req.session.pwOK = true;
             }
             next();
@@ -158,18 +195,40 @@ async function lockDownDefaults(db) {
     return list;
 }
 
+// Everyone must pick a new password at their next page (district administrators only)
+async function requireAll(db, who) {
+    await ensure(db);
+    const people = await db.all('SELECT id FROM employees');
+    await db.run('BEGIN');
+    try { for (const p of people) await setMustChange(db, p.id, true, who); await db.run('COMMIT'); }
+    catch (e) { await db.run('ROLLBACK'); throw e; }
+    return people.length;
+}
+async function pendingCount(db) {
+    await ensure(db);
+    return (await db.get("SELECT COUNT(*) AS n FROM app_settings WHERE key LIKE 'pwchange\\_%' ESCAPE '\\'")).n;
+}
+
 // ---------- "Change my password" ----------
 function mount(app, getDb, wrap) {
+    app.post('/admin/passwords/require-all', wrap(async (req, res) => {
+        if (req.session.district !== 1) return res.redirect(req.session.userID ? '/dashboard' : '/');
+        const db = getDb();
+        const n = await requireAll(db, req.session.name || '');
+        await db.run('INSERT INTO audit_log (actor_id, actor_name, target_id, target_name, action, details, reason) VALUES (?,?,?,?,?,?,?)',
+            [req.session.userID, req.session.name || '', null, '', 'PASSWORD_REQUIRED_ALL', 'Required all ' + n + ' accounts to choose a new password at their next page', '']);
+        res.redirect('/admin/health?pw=' + n);
+    }));
     app.get('/profile/password', wrap(async (req, res) => {
         if (!req.session.userID) return res.redirect('/');
         const forced = await mustChange(getDb(), req.session.userID);
-        res.render('password_change', { error: null, ok: null, first: forced });
+        res.render('password_change', { error: null, ok: null, first: forced, expired: forced && req.query && req.query.expired === '1' });
     }));
     app.post('/profile/password', wrap(async (req, res) => {
         if (!req.session.userID) return res.redirect('/');
         const db = getDb(), b = req.body || {};
         const forced = await mustChange(db, req.session.userID);
-        const fail = (msg, code) => res.status(code || 400).render('password_change', { error: msg, ok: null, first: forced });
+        const fail = (msg, code) => res.status(code || 400).render('password_change', { error: msg, ok: null, first: forced, expired: false });
         const me = await db.get('SELECT id, username, password_hash FROM employees WHERE id = ?', [req.session.userID]);
         if (!me) return res.redirect('/');
         const lock = await loginLocked(db, req.ip, me.username);
@@ -180,7 +239,9 @@ function mount(app, getDb, wrap) {
         if (next === cur) return fail('Pick a new password that is different from the current one.');
         const problem = passwordProblem(next, me.username);
         if (problem) return fail(problem);
+        if (await recentlyUsed(db, me.id, next, me.password_hash)) return fail('You used that password recently. Choose one that is different from your last ' + NO_REUSE + ' passwords.');
         await db.run('UPDATE employees SET password_hash = ? WHERE id = ?', [await bcrypt.hash(next, 10), me.id]);
+        await recordChange(db, me.id, me.password_hash);
         await loginSucceeded(db, me.username);
         await setMustChange(db, me.id, false);
         const others = await endSessions(db, me.id, req.sessionID);
@@ -192,4 +253,4 @@ function mount(app, getDb, wrap) {
     }));
 }
 
-module.exports = { headers, sameSiteOnly, passwordProblem, loginLocked, loginFailed, loginSucceeded, mustChange, setMustChange, forceChange, endSessions, defaultAccounts, lockDownDefaults, mount, ensure, DUMMY_HASH, lockMessage, csp };
+module.exports = { headers, sameSiteOnly, passwordProblem, loginLocked, loginFailed, loginSucceeded, mustChange, setMustChange, recordChange, recentlyUsed, expired, MAX_AGE_DAYS, NO_REUSE, requireAll, pendingCount, forceChange, endSessions, defaultAccounts, lockDownDefaults, mount, ensure, DUMMY_HASH, lockMessage, csp };

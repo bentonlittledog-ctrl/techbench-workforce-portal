@@ -1,0 +1,32 @@
+<% if (typeof clock !== 'undefined' && clock) { %>
+    <h3 style="margin-top:0;">Your clock</h3>
+    <% if (clock.error) { %><div class="msg bad" role="alert"><%= clock.error %></div><% } %>
+    <% if (clock.autoNotice) { %><div class="msg" role="status"><%= clock.autoNotice %></div><% } %>
+    <% if (clock.shiftLimit && clock.status === 'CLOCK_IN') { %><p class="hint" id="limitNote" data-limit-ms="<%= Math.round(clock.shiftLimit * 3600000) %>" style="margin:0 0 8px">Your shift limit is <%= clock.shiftLimitText %>. Time past it goes to a supervisor to approve.</p><% } %>
+    <div class="clock <%= clock.status === 'CLOCK_IN' ? 'on' : '' %>" id="clock" <% if (clock.sinceMs && clock.status === 'CLOCK_IN') { %>data-since="<%= clock.sinceMs %>"<% } %>>
+        <div>
+            <div class="state"><span class="dot"></span><span><%= clock.status === 'CLOCK_IN' ? 'On the clock' : 'Off the clock' %></span></div>
+            <div class="t" id="clockTime"><%= clock.status === 'CLOCK_IN' ? '00:00:00' : '--:--:--' %></div>
+            <div class="since"><%= clock.status === 'CLOCK_IN' ? 'Time on this shift' : 'Press Clock in when your shift starts' %></div>
+        </div>
+        <form action="/punch" method="POST">
+            <button type="submit" name="action" value="CLOCK_IN" class="btn btn-ok" <%= clock.status === 'CLOCK_IN' ? 'disabled' : '' %>>Clock in</button>
+            <button type="submit" name="action" value="CLOCK_OUT" class="btn btn-danger" <%= clock.status === 'CLOCK_OUT' ? 'disabled' : '' %>>Clock out</button>
+        </form>
+    </div>
+    <p class="hint" style="margin:8px 0 22px;">Your hours this period: <strong><%= clock.hours %></strong>. See <a href="/timecards">Past timecards</a> for the full list.</p>
+    <script>
+        (function () {
+            var box = document.getElementById("clock");
+            var since = Number(box.getAttribute("data-since"));
+            if (!since) return;
+            var out = document.getElementById("clockTime");
+            function p(n) { return String(n).padStart(2, "0"); }
+            function tick() {
+                var s = Math.max(0, Math.floor((Date.now() - since) / 1000));
+                out.textContent = p(Math.floor(s / 3600)) + ":" + p(Math.floor(s % 3600 / 60)) + ":" + p(s % 60);
+            }
+            tick(); setInterval(tick, 1000);
+        })();
+    </script>
+<% } %>

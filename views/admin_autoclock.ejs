@@ -15,11 +15,11 @@
     <form class="panel" action="/admin/autoclock" method="POST">
         <h3>Settings</h3>
         <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="enabled" value="1" <%= cfg.enabled ? 'checked' : '' %> style="width:auto;margin:0"> Close forgotten shifts automatically</label>
-        <label for="mh">Default shift limit (hours)</label>
-        <input type="number" id="mh" name="max_hours" min="1" max="16" step="0.25" value="<%= cfg.maxHours %>" required>
-        <p class="hint">The most hours credited for one shift. You can give a person their own limit on their Edit account page. A longer shift is allowed, but only the limit shows on the timecard until a supervisor approves the extra time (up to 5 minutes over is counted automatically).</p>
-        <label for="wh">Extra time before a forgotten shift is closed (hours)</label>
-        <input type="number" id="wh" name="window_hours" min="0" max="12" step="0.25" value="<%= cfg.windowHours %>">
+        <label for="mh">Default shift limit (minutes)</label>
+        <input type="number" id="mh" name="max_minutes" min="10" max="960" step="1" value="<%= Math.round(cfg.maxHours * 60) %>" required>
+        <p class="hint">The most time credited for one shift, in minutes (50 = 50 minutes, 480 = 8 hours). You can give a person their own limit on their Edit account page. A longer shift is allowed, but only the limit shows on the timecard until a supervisor approves the extra time (up to 5 minutes over is counted automatically).</p>
+        <label for="wh">Extra time before a forgotten shift is closed (minutes)</label>
+        <input type="number" id="wh" name="window_minutes" min="0" max="720" step="1" value="<%= Math.round(cfg.windowHours * 60) %>">
         <p class="hint">People can keep working past their limit for this long. A shift still open after the limit plus this time is treated as forgotten and closed at the limit. Set 0 to close right at the limit.</p>
         <label for="co">Daily cutoff time (optional)</label>
         <input type="time" id="co" name="cutoff" value="<%= cfg.cutoff %>">

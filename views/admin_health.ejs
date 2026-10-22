@@ -18,5 +18,12 @@
         </table></div>
         <p class="hint">Need a copy off the server? <a href="/admin/backup">Download a backup</a>.</p>
     </div>
+
+    <div class="panel">
+        <h3>Passwords</h3>
+        <% if (typeof pwJust !== 'undefined' && pwJust) { %><div class="msg ok" role="status">Done. All <%= pwJust %> accounts must choose a new password at their next page, including yours.</div><% } %>
+        <p class="hint">Make everyone pick a new password. Each person is sent to the change-password page the next time they open anything, and can't continue until they choose a strong one that is different from the old one. <% if (typeof pwPending !== 'undefined') { %><strong><%= pwPending %></strong> account<%= pwPending === 1 ? '' : 's' %> currently waiting to change.<% } %></p>
+        <form action="/admin/passwords/require-all" method="POST" style="margin:0"><button type="submit" onclick="return confirm('Make every account choose a new password at their next page? This includes you.');">Require everyone to change their password</button></form>
+    </div>
 </body>
 </html>

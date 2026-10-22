@@ -84,7 +84,7 @@ function navHtml(nav, theme) {
 
     h += '<button type="button" class="grp" data-grp="mytime" aria-expanded="true">My time</button><ul>' +
         item('/dashboard', 'home', 'Dashboard', path === '/dashboard') +
-        (nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
+        (nav.admin || nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
         item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') +
         item('/schedule', 'clock', 'My schedule', path === '/schedule') +
@@ -117,25 +117,23 @@ function navHtml(nav, theme) {
     }
 
     if (nav.admin) {
-        const mg = (can('view') ? item('/supervisor', 'home', 'Overview', path === '/supervisor') : '') +
-            (can('requests') ? item('/admin/requests', 'inbox', 'Pending requests', starts('/admin/requests')) : '') +
+        const mg = (can('requests') ? item('/admin/requests', 'inbox', 'Pending requests', starts('/admin/requests')) : '') +
             (can('accounts_view') ? item('/admin/accounts', 'users', 'Accounts', starts('/admin/accounts')) : '') +
             (can('timecards_edit') ? item('/admin/shifts', 'edit', 'Edit timecards', starts('/admin/shifts')) : '') +
             (can('schedules') ? item('/admin/schedules', 'clock', 'Clock-in schedules', starts('/admin/schedules')) : '') +
             (can('passwords') ? item('/admin/users/reset', 'key', 'Reset password', path === '/admin/users/reset') : '');
-        if (mg) h += '<button type="button" class="grp" data-grp="manage" aria-expanded="true">Supervisor panel</button><ul>' + mg + '</ul>';
+        if (mg) h += '<button type="button" class="grp" data-grp="manage" aria-expanded="true">Manage</button><ul>' + mg + '</ul>';
     }
     if (nav.district) {
         h += '<button type="button" class="grp" data-grp="district" aria-expanded="true">District</button><ul>' +
             item('/admin/org', 'org', 'Sites &amp; assignments', path === '/admin/org') +
             item('/admin/audit', 'log', 'Audit log', path === '/admin/audit') +
             item('/admin/autoclock', 'clock', 'Auto clock-out', path === '/admin/autoclock') +
-            item('/admin/migration', 'users', 'Account migration', path === '/admin/migration') +
             item('/admin/health', 'chart', 'Health check', path === '/admin/health') +
             item('/admin/backup', 'db', 'Download backup', false) + '</ul>';
     }
 
-    const role = nav.district ? 'District administrator' : (nav.student ? 'Student manager' : (nav.admin ? 'Supervisor' : 'Employee'));
+    const role = nav.district ? 'District administrator' : (nav.admin ? (nav.roleName || 'Location Coordinator') : 'Employee');
     h += '</nav><div class="user"><strong>' + esc(nav.name) + '</strong>' + role + ' &middot; <a href="/logout">Log out</a></div></aside>';
     return h;
 }

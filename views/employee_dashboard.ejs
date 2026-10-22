@@ -14,7 +14,7 @@
     <% if (error) { %><div class="msg bad" role="alert"><%= error %></div><% } %>
     <% if (typeof autoNotice !== 'undefined' && autoNotice) { %><div class="msg" role="status"><%= autoNotice %></div><% } %>
 
-    <% if (typeof shiftLimit !== 'undefined' && shiftLimit && currentStatus === 'CLOCK_IN') { %><p class="hint" id="limitNote" data-limit-ms="<%= Math.round(shiftLimit * 3600000) %>" style="margin:0 0 8px">Your shift limit is <%= shiftLimit %> hours. Time past that needs your supervisor's approval before it counts toward your pay.</p><% } %>
+    <% if (typeof shiftLimit !== 'undefined' && shiftLimit && currentStatus === 'CLOCK_IN') { %><p class="hint" id="limitNote" data-limit-ms="<%= Math.round(shiftLimit * 3600000) %>" style="margin:0 0 8px">Your shift limit is <%= typeof shiftLimitText !== 'undefined' ? shiftLimitText : shiftLimit + ' hours' %>. Time past that needs your supervisor's approval before it counts toward your pay.</p><% } %>
     <div class="clock <%= currentStatus === 'CLOCK_IN' ? 'on' : '' %>" id="clock" <% if (typeof sinceMs !== 'undefined' && sinceMs && currentStatus === 'CLOCK_IN') { %>data-since="<%= sinceMs %>"<% } %>>
         <div>
             <div class="state"><span class="dot"></span><span><%= currentStatus === 'CLOCK_IN' ? 'On the clock' : 'Off the clock' %></span></div>

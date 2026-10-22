@@ -170,7 +170,8 @@ function mount(app, getDb, wrap) {
         if (req.session.district !== 1) return res.redirect(req.session.userID ? '/dashboard' : '/');
         const db = getDb();
         const checks = await healthChecks(db);
-        res.render('admin_health', { checks, bad: checks.filter(c => c.state === 'bad').length, warn: checks.filter(c => c.state === 'warn').length, now: new Date().toLocaleString('en-US') });
+        res.render('admin_health', { checks, bad: checks.filter(c => c.state === 'bad').length, warn: checks.filter(c => c.state === 'warn').length, now: new Date().toLocaleString('en-US'),
+            pwPending: await require('./security').pendingCount(db), pwJust: parseInt(req.query.pw, 10) || 0 });
     }));
 }
 

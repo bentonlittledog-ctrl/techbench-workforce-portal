@@ -52,7 +52,7 @@ function mount(app, getDb, wrap) {
         perms.forEach(x => { let g = groups.find(y => y.name === x.group); if (!g) groups.push(g = { name: x.group, items: [] }); g.items.push(x); });
         res.render('profile', {
             me: { first: firstName(me.name), name: me.name, username: me.username, studentId: me.student_id || '', periods: me.periods || '' },
-            role: ctx.district ? 'District administrator' : ctx.admin ? 'Manager' : 'Employee',
+            role: ctx.district ? 'District administrator' : ctx.admin ? require('./roles').NAMES[await require('./roles').codeOf(db, me)] : 'Employee',
             places: memberships, manages: scopes, bench: ctx.bench, groups, onCount: perms.filter(x => x.on).length, total: perms.length
         });
     }));

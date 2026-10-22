@@ -28,16 +28,20 @@ async function canManage(db, session, targetId) {
     if (session.district === 1) {
         return !!(await db.get('SELECT 1 FROM employees WHERE id = ?', [targetId]));
     }
-    // Nobody approves or changes their own time or account (their own requests go to a district administrator)
+    // Nobody but a district administrator approves or changes their own time or account
     if (targetId === session.userID) return false;
     const v = visibleSql(session, 'e');
     const ok = !!(await db.get('SELECT 1 FROM employees e WHERE e.id = ? AND ' + v.sql, [targetId, ...v.params]));
     if (!ok) return false;
-    // Student managers cannot act on district administrators or on other student managers
+    // Student roles cannot act on district administrators, Location Coordinators, other student leads, or themselves
     try {
-        const sup = require('./supervisor');
-        if (await sup.isStudent(db, session.userID) && await sup.blockedForStudent(db, targetId)) return false;
-    } catch (e) { /* supervisor tables not ready: treat as an ordinary manager */ }
+        const R = require('./roles');
+        const me = await R.codeOf(db, { id: session.userID, is_admin: 1, is_district: 0 });
+        if (R.isStudent(me)) {
+            const t = await db.get('SELECT id, is_admin, is_district FROM employees WHERE id = ?', [targetId]);
+            if (!t || await R.blockedForStudent(db, me, t)) return false;
+        }
+    } catch (e) { /* role table not ready: ordinary manager rules */ }
     return true;
 }
 
@@ -141,7 +145,7 @@ const ORG_TPL =
     <p class="hint">These accounts have no site or program yet. Tick the people, choose where they work, and assign them together.</p>
     <form action="/admin/org/bulk" method="POST">
       <% unassigned.forEach(a => { %>
-        <label><input type="checkbox" name="employeeIds" value="<%= a.id %>"> <%= a.name %> (<%= a.username %>) - <%= a.is_admin ? 'Manager' : 'Employee' %></label>
+        <label><input type="checkbox" name="employeeIds" value="<%= a.id %>"> <%= a.name %> (<%= a.username %>) - <%= a.is_admin ? 'Supervising' : 'Employee' %></label>
       <% }) %>
       <label for="bulkSite">Site</label>
       <select id="bulkSite" name="site_id" required>
@@ -188,6 +192,7 @@ function mount(app, getDb, wrap) {
     app.get('/admin/org', wrap(async (req, res) => {
         if (needDistrict(req, res)) return;
         const db = getDb();
+        await require('./roles').ensure(db);
         const sites = await db.all('SELECT id, name FROM sites ORDER BY name');
         const programs = await db.all('SELECT id, name FROM programs ORDER BY name');
         const accounts = await db.all('SELECT id, name, username, is_admin, is_district FROM employees ORDER BY name');
@@ -203,7 +208,7 @@ function mount(app, getDb, wrap) {
               FROM memberships m JOIN employees e ON e.id = m.employee_id
               JOIN sites s ON s.id = m.site_id JOIN programs p ON p.id = m.program_id
             UNION ALL
-            SELECT e.name, 'Manager', s.name, COALESCE(p.name, 'All programs')
+            SELECT e.name, CASE (SELECT role FROM account_role r WHERE r.employee_id = e.id) WHEN 3 THEN 'Student General Manager' WHEN 4 THEN 'Student Manager' ELSE 'Location Coordinator' END, s.name, COALESCE(p.name, 'All programs')
               FROM scopes sc JOIN employees e ON e.id = sc.employee_id
               JOIN sites s ON s.id = sc.site_id LEFT JOIN programs p ON p.id = sc.program_id
             ORDER BY 1, 3, 4

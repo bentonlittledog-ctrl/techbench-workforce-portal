@@ -179,7 +179,9 @@ function mount(app, getDb, wrap) {
         if (!target || !(await canManage(db, req.session, id))) return res.redirect('/admin/users/reset?msg=none');
 
         const hash = await bcrypt.hash(password, 10);
+        const oldHash = await db.get('SELECT password_hash FROM employees WHERE id = ?', [id]);
         await db.run('UPDATE employees SET password_hash = ? WHERE id = ?', [hash, id]);
+        await SEC.recordChange(db, id, oldHash && oldHash.password_hash).catch(() => {});
         await SEC.setMustChange(db, id, true, req.session.name);     // they choose their own password at the next sign-in
         await SEC.endSessions(db, id);                               // anyone signed in with the old password is signed out
         await SEC.loginSucceeded(db, tUser.username);                // clears a lockout, so they can use the new password right away

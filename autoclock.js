@@ -24,7 +24,7 @@ async function getSettings(db) {
     const hrs = parseFloat(m.autoclock_max_hours);
     return {
         enabled: m.autoclock_enabled === undefined ? DEFAULTS.enabled : m.autoclock_enabled === '1',
-        maxHours: hrs >= 1 && hrs <= 16 ? hrs : DEFAULTS.maxHours,
+        maxHours: hrs >= 10 / 60 - 1e-9 && hrs <= 16 ? hrs : DEFAULTS.maxHours,
         cutoff: validCutoff(m.autoclock_cutoff) ? m.autoclock_cutoff : DEFAULTS.cutoff,
         windowHours: m.autoclock_window_hours !== undefined && parseFloat(m.autoclock_window_hours) >= 0 && parseFloat(m.autoclock_window_hours) <= 12 ? parseFloat(m.autoclock_window_hours) : DEFAULTS.windowHours
     };
@@ -44,7 +44,7 @@ async function limitFor(db, employeeId, cfg) {
     cfg = cfg || await getSettings(db);
     const r = await db.get('SELECT value FROM app_settings WHERE key = ?', ['shiftlimit_' + employeeId]);
     const v = r ? parseFloat(r.value) : NaN;
-    return v >= 1 && v <= 16 ? v : cfg.maxHours;
+    return v >= 10 / 60 - 1e-9 && v <= 16 ? v : cfg.maxHours;
 }
 
 // The moment a forgotten shift is closed at: the clock-in plus max hours, or the cutoff time that day, whichever is earlier.
@@ -114,15 +114,15 @@ function mount(app, getDb, wrap) {
     app.post('/admin/autoclock', wrap(async (req, res) => {
         if (!gate(req, res)) return;
         const db = getDb(), b = req.body || {};
-        const maxHours = parseFloat(b.max_hours), cutoff = String(b.cutoff || '').trim();
-        if (!(maxHours >= 1 && maxHours <= 16)) { flash(req, 'Enter a number of hours from 1 to 16.', true); return res.redirect('/admin/autoclock'); }
+        const maxMin = Math.round(parseFloat(b.max_minutes)), cutoff = String(b.cutoff || '').trim();
+        if (!(maxMin >= 10 && maxMin <= 960)) { flash(req, 'Enter a shift limit from 10 to 960 minutes (for example 50 or 480).', true); return res.redirect('/admin/autoclock'); }
         if (cutoff && !validCutoff(cutoff)) { flash(req, 'Enter the cutoff time like 15:30, or leave it blank.', true); return res.redirect('/admin/autoclock'); }
-        const windowHours = b.window_hours === undefined || b.window_hours === '' ? DEFAULTS.windowHours : parseFloat(b.window_hours);
-        if (!(windowHours >= 0 && windowHours <= 12)) { flash(req, 'Enter the extra time as a number of hours from 0 to 12.', true); return res.redirect('/admin/autoclock'); }
-        const v = { enabled: b.enabled === '1', maxHours: Math.round(maxHours * 4) / 4, cutoff, windowHours: Math.round(windowHours * 4) / 4 };
+        const winMin = b.window_minutes === undefined || b.window_minutes === '' ? Math.round(DEFAULTS.windowHours * 60) : Math.round(parseFloat(b.window_minutes));
+        if (!(winMin >= 0 && winMin <= 720)) { flash(req, 'Enter the extra time as a number of minutes from 0 to 720.', true); return res.redirect('/admin/autoclock'); }
+        const v = { enabled: b.enabled === '1', maxHours: maxMin / 60, cutoff, windowHours: winMin / 60 };
         await saveSettings(db, req.session.name || '', v);
         await db.run('INSERT INTO audit_log (actor_id, actor_name, target_id, target_name, action, details, reason) VALUES (?,?,?,?,?,?,?)',
-            [req.session.userID, req.session.name || '', null, '', 'AUTOCLOCK_SETTINGS', (v.enabled ? 'On' : 'Off') + ', shift limit ' + v.maxHours + ' hours, ' + v.windowHours + ' extra hours before closing' + (v.cutoff ? ', daily cutoff ' + v.cutoff : ', no daily cutoff'), '']);
+            [req.session.userID, req.session.name || '', null, '', 'AUTOCLOCK_SETTINGS', (v.enabled ? 'On' : 'Off') + ', shift limit ' + maxMin + ' minutes, ' + winMin + ' extra minutes before closing' + (v.cutoff ? ', daily cutoff ' + v.cutoff : ', no daily cutoff'), '']);
         const r = await sweep(db);
         flash(req, 'Saved.' + (r.closed.length ? ' ' + r.closed.length + ' forgotten shift(s) were closed right away.' : ''));
         res.redirect('/admin/autoclock');

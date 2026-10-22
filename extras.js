@@ -95,7 +95,7 @@ const ADMIN_TPL = head('Pending requests') + `
   <tbody>
   <% overtime.forEach(o => { %>
     <tr>
-      <td><%= o.name %></td><td class="mono"><%= o.in_local %></td><td><%= o.limit_hours %> h</td><td class="num"><%= o.human %></td>
+      <td><%= o.name %></td><td class="mono"><%= o.in_local %></td><td><%= o.limitText %></td><td class="num"><%= o.human %></td>
       <td style="white-space:nowrap;">
         <form action="/admin/overtime/<%= o.id %>/approve" method="POST" style="display:inline-flex;gap:6px;align-items:center;">
           <input type="number" name="minutes" min="1" max="<%= o.minutes %>" value="<%= o.minutes %>" aria-label="Minutes to approve" style="width:80px;margin:0;"> <span class="hint">min</span>
@@ -423,7 +423,7 @@ module.exports = function (app, getDb, wrap) {
             shifts,
             totalHours: hoursSum.toFixed(2),
             totalPay: paySum.toFixed(2),
-            showPay: empId === req.session.userID || !isAdmin || !req.sup || req.sup.can('rates')
+            showPay: empId === req.session.userID || !isAdmin || !req.sup || req.sup.can('pay_view')
         }));
     }));
 };
