@@ -1,7 +1,7 @@
 // Auto clock-out: when someone forgets to clock out, the portal closes the shift for them.
 // The shift is credited only up to the limit (max hours, or the daily cutoff if that comes first), never up to the moment it was noticed,
 // so a forgotten punch can never turn into a very long paid shift. Managers can still correct the time on Edit timecards.
-const DEFAULTS = { enabled: true, maxHours: 8, cutoff: '' };
+const DEFAULTS = { enabled: true, maxHours: 8, cutoff: '', windowHours: 3 };
 const pad = n => String(n).padStart(2, '0');
 const utcStamp = d => d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
 const parseUtc = s => { const t = Date.parse(String(s).replace(' ', 'T') + 'Z'); return isNaN(t) ? null : t; };
@@ -25,7 +25,8 @@ async function getSettings(db) {
     return {
         enabled: m.autoclock_enabled === undefined ? DEFAULTS.enabled : m.autoclock_enabled === '1',
         maxHours: hrs >= 1 && hrs <= 16 ? hrs : DEFAULTS.maxHours,
-        cutoff: validCutoff(m.autoclock_cutoff) ? m.autoclock_cutoff : DEFAULTS.cutoff
+        cutoff: validCutoff(m.autoclock_cutoff) ? m.autoclock_cutoff : DEFAULTS.cutoff,
+        windowHours: m.autoclock_window_hours !== undefined && parseFloat(m.autoclock_window_hours) >= 0 && parseFloat(m.autoclock_window_hours) <= 12 ? parseFloat(m.autoclock_window_hours) : DEFAULTS.windowHours
     };
 }
 async function saveSettings(db, who, v) {
@@ -34,6 +35,16 @@ async function saveSettings(db, who, v) {
     await set('autoclock_enabled', v.enabled ? '1' : '0');
     await set('autoclock_max_hours', v.maxHours);
     await set('autoclock_cutoff', v.cutoff || '');
+    if (v.windowHours !== undefined) await set('autoclock_window_hours', v.windowHours);
+}
+
+// One person's shift limit: their own setting if a manager gave them one, otherwise the district-wide limit.
+async function limitFor(db, employeeId, cfg) {
+    await ensure(db);
+    cfg = cfg || await getSettings(db);
+    const r = await db.get('SELECT value FROM app_settings WHERE key = ?', ['shiftlimit_' + employeeId]);
+    const v = r ? parseFloat(r.value) : NaN;
+    return v >= 1 && v <= 16 ? v : cfg.maxHours;
 }
 
 // The moment a forgotten shift is closed at: the clock-in plus max hours, or the cutoff time that day, whichever is earlier.
@@ -56,8 +67,13 @@ async function sweep(db, now = new Date()) {
     const open = await db.all(`SELECT l.id, l.employee_id, l.timestamp, e.name FROM logs l JOIN employees e ON e.id = l.employee_id
         WHERE l.action = 'CLOCK_IN' AND l.id = (SELECT id FROM logs x WHERE x.employee_id = l.employee_id ORDER BY x.timestamp DESC, x.id DESC LIMIT 1)`);
     for (const o of open) {
-        const out = plannedOut(o.timestamp, cfg);
-        if (!out || out > now) continue;
+        const limit = await limitFor(db, o.employee_id, cfg);
+        // Paid time stops at the limit (or the daily cutoff). The person may keep working past it for the extra window;
+        // time beyond the limit is not paid until a supervisor approves it. Only a shift still open after the window is closed here.
+        const credited = plannedOut(o.timestamp, { maxHours: limit, cutoff: cfg.cutoff });
+        const trigger = plannedOut(o.timestamp, { maxHours: limit + cfg.windowHours, cutoff: cfg.cutoff });
+        const out = credited;
+        if (!out || !trigger || trigger > now) continue;
         const still = await db.get("SELECT 1 AS x FROM logs WHERE id = ? AND id = (SELECT id FROM logs WHERE employee_id = ? ORDER BY timestamp DESC, id DESC LIMIT 1)", [o.id, o.employee_id]);
         if (!still) continue;
         await db.run("INSERT INTO logs (employee_id, action, timestamp, auto) VALUES (?, 'CLOCK_OUT', ?, 1)", [o.employee_id, utcStamp(out)]);
@@ -101,10 +117,12 @@ function mount(app, getDb, wrap) {
         const maxHours = parseFloat(b.max_hours), cutoff = String(b.cutoff || '').trim();
         if (!(maxHours >= 1 && maxHours <= 16)) { flash(req, 'Enter a number of hours from 1 to 16.', true); return res.redirect('/admin/autoclock'); }
         if (cutoff && !validCutoff(cutoff)) { flash(req, 'Enter the cutoff time like 15:30, or leave it blank.', true); return res.redirect('/admin/autoclock'); }
-        const v = { enabled: b.enabled === '1', maxHours: Math.round(maxHours * 4) / 4, cutoff };
+        const windowHours = b.window_hours === undefined || b.window_hours === '' ? DEFAULTS.windowHours : parseFloat(b.window_hours);
+        if (!(windowHours >= 0 && windowHours <= 12)) { flash(req, 'Enter the extra time as a number of hours from 0 to 12.', true); return res.redirect('/admin/autoclock'); }
+        const v = { enabled: b.enabled === '1', maxHours: Math.round(maxHours * 4) / 4, cutoff, windowHours: Math.round(windowHours * 4) / 4 };
         await saveSettings(db, req.session.name || '', v);
         await db.run('INSERT INTO audit_log (actor_id, actor_name, target_id, target_name, action, details, reason) VALUES (?,?,?,?,?,?,?)',
-            [req.session.userID, req.session.name || '', null, '', 'AUTOCLOCK_SETTINGS', (v.enabled ? 'On' : 'Off') + ', max ' + v.maxHours + ' hours' + (v.cutoff ? ', daily cutoff ' + v.cutoff : ', no daily cutoff'), '']);
+            [req.session.userID, req.session.name || '', null, '', 'AUTOCLOCK_SETTINGS', (v.enabled ? 'On' : 'Off') + ', shift limit ' + v.maxHours + ' hours, ' + v.windowHours + ' extra hours before closing' + (v.cutoff ? ', daily cutoff ' + v.cutoff : ', no daily cutoff'), '']);
         const r = await sweep(db);
         flash(req, 'Saved.' + (r.closed.length ? ' ' + r.closed.length + ' forgotten shift(s) were closed right away.' : ''));
         res.redirect('/admin/autoclock');
@@ -112,4 +130,4 @@ function mount(app, getDb, wrap) {
 }
 
 module.exports = mount;
-Object.assign(module.exports, { ensure, getSettings, saveSettings, plannedOut, sweep, start, noticeFor, DEFAULTS });
+Object.assign(module.exports, { ensure, getSettings, saveSettings, limitFor, plannedOut, sweep, start, noticeFor, DEFAULTS });

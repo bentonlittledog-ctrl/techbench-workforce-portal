@@ -9,12 +9,16 @@ const ui = require('./ui');
 
 // 2.0 Configure server application
 const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1);   // Render sits in front of the app; this makes req.ip and req.secure correct
 
 // 2.05 Health check (before sessions) - handy for uptime pingers
 app.get('/health', (req, res) => res.send('ok'));
 
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));  // app.css
+app.use(require('./security').headers);       // browser security headers
+app.use(require('./security').sameSiteOnly);  // refuse form posts that come from other websites
 app.set('view engine', 'ejs');
 
 // 2.1 Secure session memory
@@ -24,7 +28,9 @@ app.use(session({
     store: new SqliteStore(() => db),
     secret: process.env.SESSION_SECRET || 'techbench_secure_portal_key_2026',
     resave: false,
-    saveUninitialized: false
+    saveUninitialized: false,
+    name: 'tb.sid',
+    cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: 12 * 3600 * 1000 }   // secure: only sent over https when the site is on https
 }));
 
 // 2.2 Lets async routes pass errors to the error handler instead of hanging or crashing
@@ -44,6 +50,9 @@ app.use(wrap(async (req, res, next) => {
     }
     next();
 }));
+
+// 2.23 Starter / temporary passwords must be changed before anything else
+app.use(require('./security').forceChange(() => db));
 
 // 2.24 Administrator on/off switches (blocks pages an account has been restricted from)
 app.use(require('./perms').middleware(() => db));
@@ -168,6 +177,7 @@ app.get('/', (req, res) => {
 
 // 5.0 Login submission handshake
 app.post('/login', wrap(async (req, res) => {
+    const S = require('./security');
     const { username, password } = req.body;
     const badLogin = 'Either the username or password you have provided is invalid.';
 
@@ -175,15 +185,25 @@ app.post('/login', wrap(async (req, res) => {
         return res.render('login', { error: badLogin });
     }
 
-    const user = await db.get('SELECT * FROM employees WHERE username = ?', [username]);
+    // Too many wrong passwords: pause sign-in for this username (and, much more loosely, for this address)
+    const locked = await S.loginLocked(db, req.ip, username);
+    if (locked) return res.status(429).render('login', { error: locked });
 
-    if (user && await bcrypt.compare(password, user.password_hash)) {
+    const user = await db.get('SELECT * FROM employees WHERE username = ?', [username]);
+    // Always run a password check, even for an unknown username, so the response time does not reveal which usernames exist
+    const match = await bcrypt.compare(password, user ? user.password_hash : S.DUMMY_HASH);
+
+    if (user && match) {
+        await S.loginSucceeded(db, username);
+        // A fresh session id at sign-in, so an id that existed before the login can never be reused
+        await new Promise((resolve, reject) => req.session.regenerate(err => err ? reject(err) : resolve()));
         req.session.userID = user.id;
         req.session.name = user.name;
         req.session.admin = user.is_admin;
         req.session.district = user.is_district;
-        return res.redirect('/dashboard');
+        return req.session.save(() => res.redirect('/dashboard'));
     }
+    await S.loginFailed(db, req.ip, username);
     res.render('login', { error: badLogin });
 }));
 
@@ -308,6 +328,7 @@ app.get('/dashboard', wrap(async (req, res) => {
         currentStatus: currentStatus,
         sinceMs: sinceMs,
         autoNotice: autoNotice,
+        shiftLimit: await require('./overtime').limitFor(db, req.session.userID).catch(() => null),
         error: error
     });
 }));
@@ -339,6 +360,18 @@ app.post('/punch', wrap(async (req, res) => {
         if (!g.allow) { req.session.error = g.message; return res.redirect('/dashboard'); }
         punchNote = g.message || null;
     }
+    if (action === 'CLOCK_OUT') {
+        // A shift is never blocked for running long. Past the person's shift limit (plus 5 minutes) only the limit is credited,
+        // and the extra time goes to a supervisor to approve.
+        const OT = require('./overtime');
+        const dec = await OT.decide(db, req.session.userID).catch(() => ({ stamp: null }));
+        if (dec.stamp) {
+            const ins = await db.run("INSERT INTO logs (employee_id, action, timestamp) VALUES (?, 'CLOCK_OUT', ?)", [req.session.userID, dec.stamp]);
+            await OT.record(db, req.session.userID, ins.lastID, dec.over, req.session.name);
+            req.session.error = dec.note;
+            return res.redirect('/dashboard');
+        }
+    }
     await db.run('INSERT INTO logs (employee_id, action) VALUES (?, ?)', [req.session.userID, action]);
     if (punchNote) req.session.error = punchNote;
     res.redirect('/dashboard');
@@ -357,6 +390,11 @@ app.post('/admin/users/add', wrap(async (req, res) => {
     const isDistrict = req.session.district === 1;
 
     if (!username || !name || typeof password !== 'string' || !password) return res.redirect('/dashboard');
+    // New accounts get a temporary password, so it has to meet the same rules as any other
+    if (require('./security').passwordProblem(password, username)) {
+        req.session.error = 'That password was not accepted: ' + require('./security').passwordProblem(password, username);
+        return res.redirect('/dashboard');
+    }
 
     // 0 = employee, 1 = manager, 2 = district administrator.
     // Only district administrators can create managers or other district administrators.
@@ -378,6 +416,7 @@ app.post('/admin/users/add', wrap(async (req, res) => {
             await db.run('INSERT INTO scopes (employee_id, site_id, program_id) VALUES (?, ?, ?)',
                 [added.lastID, chosen.site_id, chosen.program_id]);
         }
+        await require('./security').setMustChange(db, added.lastID, true, req.session.name);   // they pick their own password at first sign-in
         await db.run('COMMIT');
     } catch (err) {
         await db.run('ROLLBACK');
@@ -432,6 +471,8 @@ require('./profile')(app, () => db, wrap);
 require('./certs')(app, () => db, wrap);
 require('./autoclock')(app, () => db, wrap);
 require('./schedule')(app, () => db, wrap);
+require('./overtime')(app, () => db, wrap);
+require('./security').mount(app, () => db, wrap);
 require('./printing').mount(app, () => db, wrap);
 
 // 7.0 Error handler (must come after all routes)
@@ -449,6 +490,7 @@ setupDb()
         console.log('Timecard database connection active.');
         app.listen(PORT, () => {
             console.log(`Server engine live and listening on port ${PORT}`);
+            require('./security').lockDownDefaults(db).catch(e => console.error('Starter-password check failed:', e.message));
             require('./autoclock').start(() => db);
         });
     })

@@ -83,6 +83,17 @@
             </div>
             <% } %>
 
+            <% if (shiftLimit) { %>
+            <form class="panel" action="/admin/accounts/shiftlimit" method="POST">
+                <h3>Shift limit</h3>
+                <input type="hidden" name="id" value="<%= emp.id %>">
+                <label for="hours">Longest shift (hours)</label>
+                <input type="number" id="hours" name="hours" min="1" max="16" step="0.25" value="<%= shiftLimit.own == null ? '' : shiftLimit.own %>" placeholder="<%= shiftLimit.def %> (district default)">
+                <p class="hint" style="margin-top:6px;">Leave blank to use the district default of <%= shiftLimit.def %> hours. A longer shift is never blocked. If they clock out more than 5 minutes past this limit, their timecard shows only the limit and the extra time goes to Pending requests for you to approve.</p>
+                <button type="submit">Save shift limit</button>
+            </form>
+            <% } %>
+
             <% if (sched) { %>
             <form class="panel" action="/admin/accounts/schedule" method="POST">
                 <h3>Clock-in schedule</h3>

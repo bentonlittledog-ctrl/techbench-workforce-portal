@@ -35,6 +35,15 @@ const FORM_TPL = head('Request missed hours') + `
   <input type="text" id="note" name="note" maxlength="200" placeholder="e.g. Forgot to clock in" required>
   <button type="submit">Submit for approval</button>
 </form>
+<% if (overtime && overtime.length) { %>
+<h3>My overtime</h3>
+<p class="hint">When a shift runs past your limit, the extra time waits here for a supervisor to approve.</p>
+<div class="table-wrap"><table>
+  <thead><tr><th>Shift started</th><th class="num">Extra time</th><th>Status</th></tr></thead>
+  <tbody><% overtime.forEach(o => { %><tr><td class="mono"><%= o.in_local %></td><td class="num"><%= o.human %></td>
+    <td><span class="badge <%= o.status === 'APPROVED' ? 'ok' : (o.status === 'DENIED' ? 'bad' : 'warn') %>"><%= o.status === 'APPROVED' ? 'APPROVED ' + o.approvedHuman : o.status %></span></td></tr><% }) %></tbody>
+</table></div>
+<% } %>
 <h3>My requests</h3>
 <div class="table-wrap">
 <table>
@@ -52,10 +61,10 @@ const FORM_TPL = head('Request missed hours') + `
 
 const ADMIN_TPL = head('Pending requests') + `
 <h1>Pending requests</h1>
-<p class="sub">Missed-hours requests from the people you manage. Approving adds a normal clock-in and clock-out to their timecard.</p>
+<p class="sub">Missed-hours requests and overtime from the people you manage. Approving missed hours adds a normal clock-in and clock-out to their timecard.</p>
 <% if (message) { %><div class="msg" role="status"><%= message %></div><% } %>
 <% if (!pending.length) { %>
-  <div class="panel">No requests are waiting for approval.</div>
+  <div class="panel">No missed-hours requests are waiting for approval.</div>
 <% } else { %>
 <div class="table-wrap">
 <table>
@@ -74,6 +83,39 @@ const ADMIN_TPL = head('Pending requests') + `
   </tbody>
 </table>
 </div>
+<% } %>
+<h3>Overtime to approve</h3>
+<p class="hint">These shifts ran past the person's shift limit. Their timecard only shows the limit until you approve the extra time. You can approve fewer minutes than they worked.</p>
+<% if (!overtime.length) { %>
+  <div class="panel">No overtime is waiting for approval.</div>
+<% } else { %>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Employee</th><th>Shift started</th><th>Limit</th><th class="num">Extra time</th><th>Decision</th></tr></thead>
+  <tbody>
+  <% overtime.forEach(o => { %>
+    <tr>
+      <td><%= o.name %></td><td class="mono"><%= o.in_local %></td><td><%= o.limit_hours %> h</td><td class="num"><%= o.human %></td>
+      <td style="white-space:nowrap;">
+        <form action="/admin/overtime/<%= o.id %>/approve" method="POST" style="display:inline-flex;gap:6px;align-items:center;">
+          <input type="number" name="minutes" min="1" max="<%= o.minutes %>" value="<%= o.minutes %>" aria-label="Minutes to approve" style="width:80px;margin:0;"> <span class="hint">min</span>
+          <button type="submit" class="btn-ok" style="margin:0;">Approve</button>
+        </form>
+        <form action="/admin/overtime/<%= o.id %>/deny" method="POST" style="display:inline;"><button type="submit" class="btn-ghost" style="margin:0;">Deny</button></form>
+      </td>
+    </tr>
+  <% }) %>
+  </tbody>
+</table>
+</div>
+<% } %>
+<% if (overtimeDone.length) { %>
+<h3>Recent overtime decisions</h3>
+<div class="table-wrap"><table>
+  <thead><tr><th>Employee</th><th>Shift started</th><th class="num">Worked extra</th><th>Result</th><th>Reviewed by</th></tr></thead>
+  <tbody><% overtimeDone.forEach(o => { %><tr><td><%= o.name %></td><td class="mono"><%= o.in_local %></td><td class="num"><%= o.human %></td>
+    <td><span class="badge <%= o.status === 'APPROVED' ? 'ok' : 'bad' %>"><%= o.status === 'APPROVED' ? 'Approved ' + o.approvedHuman : 'Denied' %></span></td><td><%= o.reviewer || '' %></td></tr><% }) %></tbody>
+</table></div>
 <% } %>
 <h3>Recently reviewed</h3>
 <div class="table-wrap">
@@ -170,7 +212,8 @@ module.exports = function (app, getDb, wrap) {
             [req.session.userID]
         );
         const requests = rows.map(r => ({ ...r, hours: spanHours(r) }));
-        res.status(status).send(ejs.render(FORM_TPL, { navHtml: res.locals.navHtml, message, requests }));
+        const overtime = await require('./overtime').mineFor(db, req.session.userID).catch(() => []);
+        res.status(status).send(ejs.render(FORM_TPL, { navHtml: res.locals.navHtml, message, requests, overtime }));
     }
 
     app.get('/requests/new', wrap(async (req, res) => {
@@ -227,7 +270,13 @@ module.exports = function (app, getDb, wrap) {
             own: "You can't approve your own request. Ask another administrator.",
             conflict: 'That request overlaps existing punches for this employee. Deny it and ask them to submit corrected times.',
             scope: 'That request is outside the areas you manage.',
-            done: 'Done.'
+            done: 'Done.',
+            ot_ok: 'Overtime updated. The timecard now reflects what you approved.',
+            ot_own: "You can't approve your own overtime. Ask another administrator.",
+            ot_scope: 'That overtime is outside the areas you manage.',
+            ot_gone: 'That overtime request was already handled.',
+            ot_stale: "That shift was edited after the request, so it can't be approved here. Fix the time on Edit timecards, then deny this request.",
+            ot_conflict: 'The extra time overlaps another punch for this person. Deny it and fix the timecard on Edit timecards.'
         };
         const scope = visibleSql(req.session, 'e');
         const pending = (await db.all(`
@@ -241,7 +290,9 @@ module.exports = function (app, getDb, wrap) {
             LEFT JOIN employees a ON a.id = r.reviewed_by
             WHERE r.status != 'PENDING' AND ${scope.sql} ORDER BY r.reviewed_at DESC, r.id DESC LIMIT 20
         `, scope.params)).map(r => ({ ...r, hours: spanHours(r) }));
-        res.send(ejs.render(ADMIN_TPL, { navHtml: res.locals.navHtml, pending, reviewed, message: messages[req.query.msg] || null }));
+        const OT = require('./overtime');
+        const overtime = await OT.pendingFor(db, req.session), overtimeDone = await OT.reviewedFor(db, req.session);
+        res.send(ejs.render(ADMIN_TPL, { navHtml: res.locals.navHtml, pending, reviewed, overtime, overtimeDone, message: messages[req.query.msg] || null }));
     }));
 
     app.post('/admin/requests/:id/approve', wrap(async (req, res) => {

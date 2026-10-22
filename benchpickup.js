@@ -71,6 +71,8 @@ async function healthChecks(db) {
     add('Email alerts', require('./notify').configured() ? 'ok' : 'warn', require('./notify').configured() ? 'Ready to send.' : 'Not set up.');
     // security basics
     add('Session secret', process.env.SESSION_SECRET ? 'ok' : 'bad', process.env.SESSION_SECRET ? 'Set in Render.' : 'SESSION_SECRET is not set, so the built-in fallback key is in use. Set it in Render.');
+    const defaults = await require('./security').defaultAccounts(db).catch(() => []);
+    add('Starter accounts', defaults.length ? 'bad' : 'ok', defaults.length ? 'These accounts still use the starter password: ' + defaults.map(d => d.username).join(', ') + '. They are forced to change it at next sign-in. Remove them if you do not use them.' : 'No account is using a starter password.');
     add('Admin starter password', process.env.ADMIN_PASSWORD ? 'ok' : 'warn', process.env.ADMIN_PASSWORD ? 'Set in Render.' : 'ADMIN_PASSWORD is not set. Make sure the starter admin password was changed.');
     // counts
     const n = async q => (await db.get(q)).n;

@@ -42,19 +42,17 @@ async function setupDb() {
     // 5 Seed starter accounts (only when the employees table is empty)
     const count = await db.get('SELECT COUNT(*) AS total FROM employees');
     if (count.total === 0) {
-        // Set ADMIN_PASSWORD in Render's environment before the first start
-        // so the default 'admin123' is never used on a live system.
-        const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'admin123', 10);
-        const empHash = await bcrypt.hash('emp123', 10);
+        // Set ADMIN_PASSWORD in Render's environment before the first start.
+        // If it is not set, a random one is generated and printed once in the server log. There is no built-in default password.
+        const generated = !process.env.ADMIN_PASSWORD;
+        const adminPassword = process.env.ADMIN_PASSWORD || require('crypto').randomBytes(9).toString('base64').replace(/[^A-Za-z0-9]/g, 'x');
+        const adminHash = await bcrypt.hash(adminPassword, 10);
 
         await db.run(
             'INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin) VALUES (?, ?, ?, ?, ?)',
             ['admin', adminHash, 'Boss Manager', 30.0, 1]
         );
-        await db.run(
-            'INSERT INTO employees (username, password_hash, name, hourly_rate, is_admin) VALUES (?, ?, ?, ?, ?)',
-            ['employee', empHash, 'John Doe', 18.5, 0]
-        );
+        if (generated) console.log('FIRST START: the "admin" account password is ' + adminPassword + ' (shown once; change it after signing in).');
         console.log('Database seeded!');
     }
 

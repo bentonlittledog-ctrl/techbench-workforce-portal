@@ -107,6 +107,7 @@ module.exports = function (app, getDb, wrap) {
             memberships: memberships.map(a => ({ ...a, removable: unitSet.has(a.site_id + ':' + a.program_id) })),
             scopes: scopes.map(a => ({ ...a, removable: isDistrict })),
             permRows: await require('./perms').rowsFor(db, emp, req.session),
+            shiftLimit: role === 2 ? null : { own: await require('./overtime').ownLimit(db, id), def: (await require('./autoclock').getSettings(db)).maxHours },
             sched: role === 0 ? { value: await require('./schedule').getAssignment(db, id), sites: await db.all('SELECT id, name FROM sites ORDER BY name'), own: memberships.map(m => m.site_name).filter((n, i, a) => a.indexOf(n) === i).join(', ') } : null,
             addOptions: (role === 2 || isSelf) ? [] : addOptions
         });

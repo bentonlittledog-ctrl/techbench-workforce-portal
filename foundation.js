@@ -119,6 +119,7 @@ const RESET_MESSAGES = {
     ok: 'Password updated.',
     short: 'Passwords must be at least 8 characters.',
     mismatch: 'The two passwords did not match.',
+    weak: 'That password is too easy to guess, or matches the username. Pick a different temporary password.',
     none: 'Please choose an account.'
 };
 
@@ -170,12 +171,18 @@ function mount(app, getDb, wrap) {
         if (!id) return res.redirect('/admin/users/reset?msg=none');
         if (password.length < 8) return res.redirect('/admin/users/reset?msg=short');
         if (password !== confirm) return res.redirect('/admin/users/reset?msg=mismatch');
+        const SEC = require('./security');
+        const tUser = await db.get('SELECT username FROM employees WHERE id = ?', [id]);
+        if (SEC.passwordProblem(password, tUser && tUser.username)) return res.redirect('/admin/users/reset?msg=weak');
 
         const target = await db.get('SELECT id FROM employees WHERE id = ?', [id]);
         if (!target || !(await canManage(db, req.session, id))) return res.redirect('/admin/users/reset?msg=none');
 
         const hash = await bcrypt.hash(password, 10);
         await db.run('UPDATE employees SET password_hash = ? WHERE id = ?', [hash, id]);
+        await SEC.setMustChange(db, id, true, req.session.name);     // they choose their own password at the next sign-in
+        await SEC.endSessions(db, id);                               // anyone signed in with the old password is signed out
+        await SEC.loginSucceeded(db, tUser.username);                // clears a lockout, so they can use the new password right away
         console.log('Password reset for account ' + id + ' by account ' + req.session.userID);
         res.redirect('/admin/users/reset?msg=ok');
     }));

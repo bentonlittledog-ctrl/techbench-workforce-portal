@@ -20,6 +20,7 @@
             <dt>Student ID</dt><dd><%= me.studentId || 'Not set yet' %></dd>
             <dt>Assigned periods</dt><dd><%= me.periods || 'Not set yet' %></dd>
             <dt>Account type</dt><dd><%= role %></dd>
+            <dt>Password</dt><dd><a href="/profile/password">Change my password</a></dd>
             <% if (bench) { %><dt>Tech Bench</dt><dd><a href="/bench/portfolio">My portfolio</a> &middot; <a href="/bench/skills">My skills</a></dd><% } %>
             <dt>Where you work</dt><dd><% if (places.length) { %><%= places.map(p => p.site + ' - ' + p.program).join('; ') %><% } else if (manages.length) { %>Manages: <%= manages.map(p => p.site + ' - ' + p.program).join('; ') %><% } else { %>Not assigned yet<% } %></dd>
         </dl>
