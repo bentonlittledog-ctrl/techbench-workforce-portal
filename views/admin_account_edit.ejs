@@ -28,7 +28,7 @@
             <input type="text" id="periods" name="periods" value="<%= emp.periods %>" maxlength="60" autocomplete="off" placeholder="e.g. 2, 4, 6">
             <p class="hint" style="margin-top:6px;">Shown on this person's My profile page. They cannot change it themselves.</p>
 
-            <% if (!isSelf) { %>
+            <% if (!isSelf && seePay) { %>
                 <label for="hourly_rate">Hourly rate ($/hr)</label>
                 <input type="number" id="hourly_rate" name="hourly_rate" step="0.01" min="0" max="500" value="<%= emp.rate %>" required>
                 <p class="hint" style="margin-top:6px;">A new rate applies to all of this person's shifts, including past ones, because shifts don't store their own rate.</p>
@@ -107,6 +107,58 @@
                 <p class="hint" style="margin-top:6px;">Decides which hours this person is expected to clock in during. The times themselves are set on Clock-in schedules. It also controls what shows on their Schedule tab.</p>
                 <button type="submit">Save schedule</button>
             </form>
+            <% } %>
+
+            <% if (personal) { %>
+            <div class="panel">
+                <h3>Personal side (works in)</h3>
+                <p class="hint">Where this person works and clocks in, like any employee. Their Dashboard, schedule and timecards use this.</p>
+                <% if (!personal.length) { %><p class="hint">No school or program yet.</p><% } %>
+                <% personal.forEach(a => { %>
+                    <form action="/admin/accounts/unassign" method="POST" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line,#e3e7ee);">
+                        <span><%= a.site_name %> / <%= a.program_name %></span>
+                        <input type="hidden" name="id" value="<%= emp.id %>"><input type="hidden" name="kind" value="membership"><input type="hidden" name="rowId" value="<%= a.id %>">
+                        <% if (a.removable) { %><button type="submit" class="btn-ghost" style="margin:0;">Remove</button><% } %>
+                    </form>
+                <% }) %>
+                <% if (addOptions.length) { %>
+                <form action="/admin/accounts/assign" method="POST">
+                    <input type="hidden" name="id" value="<%= emp.id %>"><input type="hidden" name="side" value="works">
+                    <label for="unit2">Add where they work</label>
+                    <select id="unit2" name="unit" required><% addOptions.filter(o => !/:ALL$/.test(o.value)).forEach(o => { %><option value="<%= o.value %>"><%= o.label %></option><% }) %></select>
+                    <button type="submit">Add</button>
+                </form>
+                <% } %>
+            </div>
+            <% } %>
+
+            <% if (supAccess) { %>
+            <form class="panel" action="/admin/accounts/supervisor" method="POST">
+                <h3>Supervisor access</h3>
+                <input type="hidden" name="id" value="<%= emp.id %>">
+                <p class="hint"><%= supAccess.configured ? 'These are the only things this supervisor can open in the Supervisor panel.' : 'Not set yet: this supervisor can do everything a manager could before. Saving a list limits them to the ticked items.' %></p>
+                <label for="supRole">Start from a role</label>
+                <select id="supRole" name="role">
+                    <% supAccess.roles.forEach(r => { %><option value="<%= r.key %>" data-perms="<%= r.perms.join(',') %>" data-locked="<%= r.locked ? 1 : 0 %>" <%= supAccess.role === r.key ? 'selected' : '' %>><%= r.name %></option><% }) %>
+                </select>
+                <% let g = ''; supAccess.keys.forEach(k => { %>
+                    <% if (k.group !== g) { g = k.group; %><h4 class="permhead"><%= g %></h4><% } %>
+                    <label style="display:flex;gap:10px;align-items:center;font-weight:400;margin:6px 0"><input type="checkbox" class="supPerm" name="perm" value="<%= k.key %>" style="width:auto;margin:0" <%= supAccess.perms.includes(k.key) ? 'checked' : '' %>> <%= k.label %></label>
+                <% }) %>
+                <p class="hint">District pages (audit log, Health check, Sites, Account migration) are for district administrators only. A Student manager has a fixed list and cannot act on district administrators or other student managers.</p>
+                <button type="submit">Save supervisor access</button>
+            </form>
+            <% if (supAccess.configured) { %>
+            <form action="/admin/accounts/supervisor/reset" method="POST" style="margin:-6px 0 16px;"><input type="hidden" name="id" value="<%= emp.id %>"><button type="submit" class="btn-ghost" onclick="return confirm('Give this supervisor full manager access again?');">Go back to full manager access</button></form>
+            <% } %>
+            <script>
+            (function(){ var sel=document.getElementById('supRole'); if(!sel) return;
+              function apply(){ var o=sel.options[sel.selectedIndex], list=(o.getAttribute('data-perms')||'').split(','), locked=o.getAttribute('data-locked')==='1', custom=o.value==='custom';
+                document.querySelectorAll('.supPerm').forEach(function(c){ if(!custom) c.checked=list.indexOf(c.value)>=0; c.disabled=locked||o.value==='full'; }); }
+              sel.addEventListener('change',apply); apply();
+              document.querySelector('form[action="/admin/accounts/supervisor"]').addEventListener('submit',function(){ document.querySelectorAll('.supPerm').forEach(function(c){ c.disabled=false; }); });
+            })();
+            </script>
             <% } %>
 
             <form class="panel" action="/admin/accounts/permissions" method="POST">

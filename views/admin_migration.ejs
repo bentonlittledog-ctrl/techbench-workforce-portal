@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account migration - Timecard Portal</title>
+    <%- headTags %>
+</head>
+<body>
+    <%- include('partials/nav') %>
+    <h1>Account migration</h1>
+    <p class="sub">Give every supervisor and district person one normal account instead of a separate login. Nothing changes until you press Apply, and every step can be undone.</p>
+
+    <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
+
+    <form method="POST" action="/admin/migration/preview" class="panel">
+        <h3>Current supervisor and district accounts</h3>
+        <p class="hint">Merging moves the supervisor access (and any punches) onto the person's normal account and retires the old login. Retiring only blocks sign-in; nothing is deleted. Existing accounts you leave on "Keep as is" do not change at all.</p>
+        <div class="table-wrap">
+        <table>
+            <thead><tr><th>Account</th><th>Role today</th><th>Suggestion</th><th>What to do</th></tr></thead>
+            <tbody>
+            <% rows.forEach(r => {
+                   const ch = (typeof choice !== 'undefined' && choice && choice[r.id]) || null;
+                   const cur = ch ? ch.action : 'keep';
+                   const tgt = ch && ch.target ? ch.target : (r.sug.kind === 'merge' ? r.sug.target.id : 0); %>
+                <tr>
+                    <td><strong><%= r.name %></strong><br><span class="dim"><%= r.username %></span>
+                        <input type="hidden" name="id" value="<%= r.id %>"></td>
+                    <td><span class="badge <%= r.is_district ? 'ok' : '' %>"><%= r.is_district ? 'District' : (r.sup_role === 'student_manager' ? 'Student manager' : 'Supervisor') %></span></td>
+                    <td>
+                        <% if (r.student && r.sup_role !== 'student_manager') { %>Looks like a student manager
+                        <% } else if (r.sug.kind === 'merge') { %>Merge into <strong><%= r.sug.target.name %></strong> (<%= r.sug.target.username %>)
+                        <% } else if (r.sug.kind === 'shared') { %><span class="dim">Looks like a shared login</span>
+                        <% } else { %><span class="dim">Looks like a real person</span><% } %>
+                    </td>
+                    <td>
+                        <% if (r.self) { %><span class="dim">This is you. Another district administrator must change your account.</span><input type="hidden" name="action_<%= r.id %>" value="keep">
+                        <% } else { %>
+                        <select name="action_<%= r.id %>" aria-label="What to do with <%= r.name %>" style="margin:0;min-width:210px">
+                            <option value="keep" <%= cur === 'keep' ? 'selected' : '' %>>Keep as is</option>
+                            <option value="real" <%= cur === 'real' ? 'selected' : '' %>>Real person: personal side</option>
+                            <option value="merge" <%= cur === 'merge' ? 'selected' : '' %>>Merge into a normal account</option>
+                            <option value="student" <%= cur === 'student' ? 'selected' : '' %>>Make a Student manager (limited)</option>
+                            <option value="retire" <%= cur === 'retire' ? 'selected' : '' %>>Retire this shared login</option>
+                        </select>
+                        <select name="target_<%= r.id %>" aria-label="Merge <%= r.name %> into" style="margin:6px 0 0;min-width:210px">
+                            <option value="">Merge into...</option>
+                            <% normals.filter(n => n.id !== r.id).forEach(n => { %><option value="<%= n.id %>" <%= tgt === n.id ? 'selected' : '' %>><%= n.name %> (<%= n.username %>)</option><% }) %>
+                        </select>
+                        <% } %>
+                    </td>
+                </tr>
+            <% }) %>
+            <% if (!rows.length) { %><tr><td colspan="4" class="empty">No supervisor or district accounts.</td></tr><% } %>
+            </tbody>
+        </table>
+        </div>
+        <button type="submit" style="margin-top:14px">Preview changes</button>
+    </form>
+
+    <% if (plan) { %>
+    <div class="panel">
+        <h3>Preview: what Apply will do</h3>
+        <% if (plan.problems.length) { %>
+            <ul style="margin:0 0 12px 18px"><% plan.problems.forEach(p => { %><li><strong><%= p %></strong></li><% }) %></ul>
+        <% } %>
+        <% if (!plan.steps.length && !plan.problems.length) { %><p class="hint">Nothing to change. Pick an action above first.</p><% } %>
+        <ul style="margin:0 0 12px 18px"><% plan.steps.forEach(s => { %><li><%= s %></li><% }) %></ul>
+        <p class="hint">You cannot retire your own account or the last district administrator. Every step is written to the audit log.</p>
+        <% if (plan.ok) { %>
+        <form method="POST" action="/admin/migration/apply" style="display:flex;gap:10px;margin:0">
+            <% plan.choices.forEach(c => { %><input type="hidden" name="id" value="<%= c.id %>"><input type="hidden" name="action_<%= c.id %>" value="<%= c.action %>"><input type="hidden" name="target_<%= c.id %>" value="<%= c.target || '' %>"><% }) %>
+            <button type="submit">Apply these changes</button>
+            <a class="btn btn-ghost" href="/admin/migration" style="margin:0">Cancel</a>
+        </form>
+        <% } %>
+    </div>
+    <% } %>
+
+    <% if (retired.length) { %>
+    <div class="panel">
+        <h3>Retired logins</h3>
+        <div class="table-wrap"><table>
+            <thead><tr><th>Account</th><th></th></tr></thead>
+            <tbody><% retired.forEach(r => { %>
+                <tr><td><strong><%= r.name %></strong> <span class="dim">(<%= r.username %>)</span></td>
+                    <td><form method="POST" action="/admin/migration/restore" style="margin:0"><input type="hidden" name="id" value="<%= r.id %>"><button type="submit" class="btn-ghost" style="margin:0">Turn back on</button></form></td></tr>
+            <% }) %></tbody>
+        </table></div>
+    </div>
+    <% } %>
+</body>
+</html>

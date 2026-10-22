@@ -50,6 +50,12 @@ module.exports = function (app, getDb, wrap) {
         return { memberships, scopes };
     }
 
+    async function supAccess(db, id) {
+        const S = require('./supervisor');
+        const a = await S.load(db, id);
+        return { configured: a.configured, role: a.role || 'full', perms: [...a.perms], keys: S.KEYS, roles: Object.entries(S.ROLES).map(([k, r]) => ({ key: k, name: r.name, perms: r.perms, locked: !!r.locked })) };
+    }
+
     // ---------- List ----------
     app.get('/admin/accounts', wrap(async (req, res) => {
         if (needAdmin(req, res)) return;
@@ -72,7 +78,7 @@ module.exports = function (app, getDb, wrap) {
         res.render('admin_accounts', {
             flash: takeFlash(req),
             people: people.map(p => ({
-                id: p.id, name: p.name, username: p.username, rate: Number(p.hourly_rate || 0).toFixed(2),
+                id: p.id, name: p.name, username: p.username, rate: req.sup.can('rates') ? Number(p.hourly_rate || 0).toFixed(2) : '', seePay: req.sup.can('rates'),
                 role: roleOf(p), roleName: ROLE_NAMES[roleOf(p)], areas: by[p.id] || [], self: p.id === req.session.userID
             }))
         });
@@ -103,7 +109,9 @@ module.exports = function (app, getDb, wrap) {
         res.render('admin_account_edit', {
             flash: takeFlash(req),
             emp: { id: emp.id, name: emp.name, username: emp.username, studentId: emp.student_id || '', periods: emp.periods || '', rate: Number(emp.hourly_rate || 0).toFixed(2) },
-            role, roleName: ROLE_NAMES[role], isSelf, isDistrict,
+            role, roleName: ROLE_NAMES[role], isSelf, isDistrict, seePay: req.sup.can('rates'),
+            supAccess: (isDistrict && role === 1 && !isSelf) ? await supAccess(db, id) : null,
+            personal: role === 1 ? memberships.map(a => ({ ...a, removable: isDistrict || unitSet.has(a.site_id + ':' + a.program_id) })) : null,
             memberships: memberships.map(a => ({ ...a, removable: unitSet.has(a.site_id + ':' + a.program_id) })),
             scopes: scopes.map(a => ({ ...a, removable: isDistrict })),
             permRows: await require('./perms').rowsFor(db, emp, req.session),
@@ -156,7 +164,7 @@ module.exports = function (app, getDb, wrap) {
         if (clash) { flash(req, 'That username is already taken.', true); return res.redirect(back(id)); }
 
         let rate = Number(emp.hourly_rate || 0);
-        if (!isSelf && req.body.hourly_rate !== undefined) {
+        if (!isSelf && req.body.hourly_rate !== undefined && req.sup.can('rates')) {
             const r = parseFloat(req.body.hourly_rate);
             if (!isFinite(r) || r < 0 || r > 500) { flash(req, 'Enter an hourly rate between 0 and 500.', true); return res.redirect(back(id)); }
             rate = Math.round(r * 100) / 100;
@@ -237,7 +245,13 @@ module.exports = function (app, getDb, wrap) {
         const site = await db.get('SELECT id, name FROM sites WHERE id = ?', [parseInt(siteId, 10)]);
         if (!site) { flash(req, 'Choose a school and program.', true); return res.redirect(back(id)); }
 
-        if (role === 1) {
+        if (role === 1 && req.body.side === 'works') {
+            // A supervisor's personal side: where they work and clock in, like any employee
+            const chosen = (await allowedUnits(db, req.session)).find(u => u.value === value);
+            if (!chosen) { flash(req, 'You can only assign people to areas you manage.', true); return res.redirect(back(id)); }
+            await db.run('INSERT OR IGNORE INTO memberships (employee_id, site_id, program_id) VALUES (?, ?, ?)', [id, chosen.site_id, chosen.program_id]);
+            await audit(db, req, emp, 'ACCOUNT_ADD_ASSIGNMENT', 'works in ' + chosen.label + ' (personal side)');
+        } else if (role === 1) {
             if (req.session.district !== 1) return res.redirect('/admin/accounts');
             const programId = prog === 'ALL' ? null : parseInt(prog, 10);
             let progName = 'All programs';

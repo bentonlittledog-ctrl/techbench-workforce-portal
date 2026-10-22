@@ -19,7 +19,6 @@ const ICON = {
     tool: '<path d="M14.5 6.5a4 4 0 005 5L12 19a2.1 2.1 0 01-3-3z M13 8L9 4 5 6l2 3z"/>',
     chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
     mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
-    award: '<circle cx="12" cy="9" r="6"/><path d="M8.5 14L7 22l5-3 5 3-1.5-8"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
 };
 const svg = k => '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
@@ -75,6 +74,7 @@ function navHtml(nav, theme) {
     const item = (href, icon, label, active) =>
         '<li><a href="' + href + '" title="' + label.replace(/&amp;/g, '&') + '"' + (active ? ' class="active" aria-current="page"' : '') + '>' + svg(icon) + label + '</a></li>';
     const starts = p => path.indexOf(p) === 0;
+    const can = k => nav.district || !nav.sp || nav.sp[k] !== false;
 
     let h = '<aside class="side"><a class="brand" href="/dashboard">' +
         (theme.badge ? '<span class="mark logo"><img src="' + theme.badge + '" alt=""></span>' : '<span class="mark">' + svg('clock') + '</span>') +
@@ -84,13 +84,12 @@ function navHtml(nav, theme) {
 
     h += '<button type="button" class="grp" data-grp="mytime" aria-expanded="true">My time</button><ul>' +
         item('/dashboard', 'home', 'Dashboard', path === '/dashboard') +
-        (nav.admin || nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
+        (nav.canRequest === false ? '' : item('/requests/new', 'plus', 'Request missed hours', starts('/requests'))) +
         item('/timecards', 'list', 'Past timecards', path === '/timecards') +
         item('/timecards/print', 'print', 'Print timecard', path === '/timecards/print') +
         item('/schedule', 'clock', 'My schedule', path === '/schedule') +
         item('/schedule/calendar', 'list', 'Calendar', starts('/schedule/calendar')) +
-        item('/profile', 'users', 'My profile', path === '/profile') +
-        item('/certifications', 'award', 'Certifications', starts('/certifications')) + '</ul>';
+        item('/profile', 'users', 'My profile', path === '/profile') + '</ul>';
 
     if (nav.resources) {
         h += '<button type="button" class="grp" data-grp="resources" aria-expanded="true">Resources</button><ul>' +
@@ -109,7 +108,7 @@ function navHtml(nav, theme) {
             item('/bench/device', 'tool', 'Device history', starts('/bench/device')) +
                 (nav.benchReady ? item('/bench/order', 'box', 'Order a part', starts('/bench/order')) +
                 item('/bench/repair', 'tool', 'Log a repair', starts('/bench/repair')) : '') +
-            (nav.admin && nav.benchManage !== false ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +
+            (nav.admin && nav.benchManage !== false && can('bench_admin') ? item('/bench/report', 'list', 'Fee report', starts('/bench/report')) +
                 item('/bench/statements', 'list', 'School statements', starts('/bench/statements')) +
                 item('/bench/hours', 'chart', 'Hours per repair', starts('/bench/hours')) +
                 item('/bench/settings', 'edit', 'Bench settings', starts('/bench/settings')) +
@@ -118,23 +117,25 @@ function navHtml(nav, theme) {
     }
 
     if (nav.admin) {
-        h += '<button type="button" class="grp" data-grp="manage" aria-expanded="true">Manage</button><ul>' +
-            item('/admin/requests', 'inbox', 'Pending requests', starts('/admin/requests')) +
-            item('/admin/accounts', 'users', 'Accounts', starts('/admin/accounts')) +
-            item('/admin/shifts', 'edit', 'Edit timecards', starts('/admin/shifts')) +
-            item('/admin/schedules', 'clock', 'Clock-in schedules', starts('/admin/schedules')) +
-            item('/admin/users/reset', 'key', 'Reset password', path === '/admin/users/reset') + '</ul>';
+        const mg = (can('view') ? item('/supervisor', 'home', 'Overview', path === '/supervisor') : '') +
+            (can('requests') ? item('/admin/requests', 'inbox', 'Pending requests', starts('/admin/requests')) : '') +
+            (can('accounts_view') ? item('/admin/accounts', 'users', 'Accounts', starts('/admin/accounts')) : '') +
+            (can('timecards_edit') ? item('/admin/shifts', 'edit', 'Edit timecards', starts('/admin/shifts')) : '') +
+            (can('schedules') ? item('/admin/schedules', 'clock', 'Clock-in schedules', starts('/admin/schedules')) : '') +
+            (can('passwords') ? item('/admin/users/reset', 'key', 'Reset password', path === '/admin/users/reset') : '');
+        if (mg) h += '<button type="button" class="grp" data-grp="manage" aria-expanded="true">Supervisor panel</button><ul>' + mg + '</ul>';
     }
     if (nav.district) {
         h += '<button type="button" class="grp" data-grp="district" aria-expanded="true">District</button><ul>' +
             item('/admin/org', 'org', 'Sites &amp; assignments', path === '/admin/org') +
             item('/admin/audit', 'log', 'Audit log', path === '/admin/audit') +
             item('/admin/autoclock', 'clock', 'Auto clock-out', path === '/admin/autoclock') +
+            item('/admin/migration', 'users', 'Account migration', path === '/admin/migration') +
             item('/admin/health', 'chart', 'Health check', path === '/admin/health') +
             item('/admin/backup', 'db', 'Download backup', false) + '</ul>';
     }
 
-    const role = nav.district ? 'District administrator' : (nav.admin ? 'Manager' : 'Employee');
+    const role = nav.district ? 'District administrator' : (nav.student ? 'Student manager' : (nav.admin ? 'Supervisor' : 'Employee'));
     h += '</nav><div class="user"><strong>' + esc(nav.name) + '</strong>' + role + ' &middot; <a href="/logout">Log out</a></div></aside>';
     return h;
 }

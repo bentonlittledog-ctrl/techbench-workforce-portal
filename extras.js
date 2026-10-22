@@ -151,20 +151,20 @@ const CARD_TPL = head('Past timecards') + `
 </form>
 <h3 style="margin-top:8px;"><%= empName %> &middot; <%= monthLabel %></h3>
 <div class="stats">
-  <div class="stat"><div class="k">Base rate</div><div class="v">$<%= rate %><small>/hr</small></div></div>
+  <% if (showPay) { %><div class="stat"><div class="k">Base rate</div><div class="v">$<%= rate %><small>/hr</small></div></div><% } %>
   <div class="stat"><div class="k">Hours</div><div class="v"><%= totalHours %></div></div>
-  <div class="stat"><div class="k">Pay</div><div class="v">$<%= totalPay %></div></div>
+  <% if (showPay) { %><div class="stat"><div class="k">Pay</div><div class="v">$<%= totalPay %></div></div><% } %>
 </div>
 <div class="table-wrap">
 <table>
-  <thead><tr><th>Date</th><th>Time</th><th class="num">Hours</th><th class="num">Amount</th></tr></thead>
+  <thead><tr><th>Date</th><th>Time</th><th class="num">Hours</th><% if (showPay) { %><th class="num">Amount</th><% } %></tr></thead>
   <tbody>
   <% shifts.forEach(s => { %>
-    <tr><td><%= s.date %></td><td class="mono"><%= s.time %></td><td class="num"><%= s.hours %></td><td class="num">$<%= s.amount %></td></tr>
+    <tr><td><%= s.date %></td><td class="mono"><%= s.time %></td><td class="num"><%= s.hours %></td><% if (showPay) { %><td class="num">$<%= s.amount %></td><% } %></tr>
   <% }) %>
-  <% if (!shifts.length) { %><tr><td colspan="4" class="empty">No completed shifts this month.</td></tr><% } %>
+  <% if (!shifts.length) { %><tr><td colspan="<%= showPay ? 4 : 3 %>" class="empty">No completed shifts this month.</td></tr><% } %>
   </tbody>
-  <tfoot><tr><td colspan="2">Total</td><td class="num"><%= totalHours %></td><td class="num">$<%= totalPay %></td></tr></tfoot>
+  <tfoot><tr><td colspan="2">Total</td><td class="num"><%= totalHours %></td><% if (showPay) { %><td class="num">$<%= totalPay %></td><% } %></tr></tfoot>
 </table>
 </div>
 </body></html>`;
@@ -422,7 +422,8 @@ module.exports = function (app, getDb, wrap) {
             monthLabel: new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
             shifts,
             totalHours: hoursSum.toFixed(2),
-            totalPay: paySum.toFixed(2)
+            totalPay: paySum.toFixed(2),
+            showPay: empId === req.session.userID || !isAdmin || !req.sup || req.sup.can('rates')
         }));
     }));
 };

@@ -9,8 +9,9 @@
 <body>
     <%- include('partials/nav') %>
     <h1>Admin dashboard</h1>
-    <p class="sub">Accounts and shifts for the sites and programs you manage.</p>
+    <p class="sub">Accounts and shifts for the sites and programs you manage. Your own shifts are included.</p>
 
+    <% if (canAdd) { %>
     <div class="grid2">
         <details class="panel">
             <summary>Add an account</summary>
@@ -21,8 +22,10 @@
                 <input type="text" id="username" name="username" autocapitalize="none" required>
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
+                <% if (seePay) { %>
                 <label for="hourly_rate">Hourly rate ($/hr)</label>
                 <input type="number" id="hourly_rate" name="hourly_rate" step="0.01" required>
+                <% } %>
 
                 <label for="siteSelect">School / location</label>
                 <select id="siteSelect" name="site_id">
@@ -64,6 +67,7 @@
             </form>
         </details>
     </div>
+    <% } %>
 
     <h3>Shifts</h3>
     <div class="row" style="margin-bottom:6px;">
@@ -81,26 +85,26 @@
     <div class="table-wrap">
     <table>
         <thead>
-            <tr><th>Employee</th><th class="num">Rate</th><th>Date</th><th>Time</th><th class="num">Hours</th><th class="num">Amount</th></tr>
+            <tr><th>Employee</th><% if (seePay) { %><th class="num">Rate</th><% } %><th>Date</th><th>Time</th><th class="num">Hours</th><% if (seePay) { %><th class="num">Amount</th><% } %></tr>
         </thead>
         <tbody id="timesheetBody">
             <% shifts.forEach(shift => { %>
                 <tr data-name="<%= shift.name %>">
                     <td><%= shift.name %></td>
-                    <td class="num">$<%= parseFloat(shift.rate).toFixed(2) %></td>
+                    <% if (seePay) { %><td class="num">$<%= parseFloat(shift.rate).toFixed(2) %></td><% } %>
                     <td><%= shift.date %></td>
                     <td class="mono"><%= shift.time %></td>
-                    <td class="num"><%= parseFloat(shift.hours).toFixed(2) %></td>
-                    <td class="num">$<%= parseFloat(shift.amount).toFixed(2) %></td>
+                    <td class="num" data-h><%= parseFloat(shift.hours).toFixed(2) %></td>
+                    <% if (seePay) { %><td class="num" data-p>$<%= parseFloat(shift.amount).toFixed(2) %></td><% } %>
                 </tr>
             <% }) %>
-            <% if (!shifts.length) { %><tr><td colspan="6" class="empty">No completed shifts yet.</td></tr><% } %>
+            <% if (!shifts.length) { %><tr><td colspan="<%= seePay ? 6 : 4 %>" class="empty">No completed shifts yet.</td></tr><% } %>
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="4">Total</td>
+                <td colspan="<%= seePay ? 4 : 3 %>">Total</td>
                 <td class="num" id="totalHoursCell"><%= totalHours %></td>
-                <td class="num" id="totalPayoutCell">$<%= totalPayout %></td>
+                <% if (seePay) { %><td class="num" id="totalPayoutCell">$<%= totalPayout %></td><% } %>
             </tr>
         </tfoot>
     </table>
@@ -108,7 +112,9 @@
 
     <script>
         (function () {
-            const units = JSON.parse(document.getElementById("unitData").textContent);
+            const unitEl = document.getElementById("unitData");
+            if (!unitEl) return;
+            const units = JSON.parse(unitEl.textContent);
             const siteSel = document.getElementById("siteSelect");
             const progSel = document.getElementById("programSelect");
             const sites = new Map();
@@ -139,12 +145,13 @@
                 const show = selector === "ALL" || row.getAttribute("data-name") === selector;
                 row.style.display = show ? "" : "none";
                 if (show) {
-                    hours += parseFloat(row.cells[4].textContent) || 0;
-                    payout += parseFloat(row.cells[5].textContent.replace("$", "")) || 0;
+                    const h = row.querySelector("[data-h]"), pc = row.querySelector("[data-p]");
+                    hours += h ? parseFloat(h.textContent) || 0 : 0;
+                    payout += pc ? parseFloat(pc.textContent.replace("$", "")) || 0 : 0;
                 }
             });
             document.getElementById("totalHoursCell").textContent = hours.toFixed(2);
-            document.getElementById("totalPayoutCell").textContent = "$" + payout.toFixed(2);
+            const pt = document.getElementById("totalPayoutCell"); if (pt) pt.textContent = "$" + payout.toFixed(2);
         }
     </script>
 </body>

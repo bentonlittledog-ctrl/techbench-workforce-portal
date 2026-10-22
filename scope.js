@@ -28,8 +28,17 @@ async function canManage(db, session, targetId) {
     if (session.district === 1) {
         return !!(await db.get('SELECT 1 FROM employees WHERE id = ?', [targetId]));
     }
+    // Nobody approves or changes their own time or account (their own requests go to a district administrator)
+    if (targetId === session.userID) return false;
     const v = visibleSql(session, 'e');
-    return !!(await db.get('SELECT 1 FROM employees e WHERE e.id = ? AND ' + v.sql, [targetId, ...v.params]));
+    const ok = !!(await db.get('SELECT 1 FROM employees e WHERE e.id = ? AND ' + v.sql, [targetId, ...v.params]));
+    if (!ok) return false;
+    // Student managers cannot act on district administrators or on other student managers
+    try {
+        const sup = require('./supervisor');
+        if (await sup.isStudent(db, session.userID) && await sup.blockedForStudent(db, targetId)) return false;
+    } catch (e) { /* supervisor tables not ready: treat as an ordinary manager */ }
+    return true;
 }
 
 // Accounts shown in the admin lists (reset, remove). Managers see only their own areas.

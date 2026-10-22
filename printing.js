@@ -226,6 +226,7 @@ function mount(app, getDb, wrap) {
                 const me = await db.get('SELECT id, name FROM employees WHERE id = ?', [req.session.userID]);
                 if (me) people.push(me);
             }
+            if (req.sup && !req.sup.can('rates')) people = people.filter(p => p.id === req.session.userID);   // pay claims show rates, so only your own
             people.sort((a, b) => a.name.localeCompare(b.name));
             const wanted = parseInt(req.query.employeeId, 10);
             if (people.some(p => p.id === wanted)) empId = wanted;

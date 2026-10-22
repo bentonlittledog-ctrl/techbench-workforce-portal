@@ -106,7 +106,7 @@ async function configsFor(db, id) {
 async function check(db, employeeId, now = new Date()) {
     await ensure(db);
     const emp = await db.get('SELECT is_admin, is_district FROM employees WHERE id = ?', [employeeId]);
-    if (!emp || emp.is_admin || emp.is_district) return { ok: true };
+    if (!emp) return { ok: true };
     const configs = await configsFor(db, employeeId);
     if (!configs.length) return { ok: true };
     const t = localParts(now);
