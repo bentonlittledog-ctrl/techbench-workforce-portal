@@ -14,7 +14,25 @@
             <button type="submit" name="action" value="CLOCK_OUT" class="btn btn-danger" <%= clock.status === 'CLOCK_OUT' ? 'disabled' : '' %>>Clock out</button>
         </form>
     </div>
-    <p class="hint" style="margin:8px 0 22px;">Your hours this period: <strong><%= clock.hours %></strong>. See <a href="/timecards">Past timecards</a> for the full list.</p>
+    <div class="stats" style="margin-top:14px;">
+        <div class="stat"><div class="k">Your hourly rate</div><div class="v">$<%= clock.rate %><small>/hr</small></div></div>
+        <div class="stat"><div class="k">Your hours this period</div><div class="v"><%= clock.hours %><small> hrs</small></div></div>
+        <div class="stat"><div class="k">You have made</div><div class="v">$<%= clock.payout %></div></div>
+    </div>
+    <h3>Your timecard</h3>
+    <div class="table-wrap">
+    <table>
+        <thead><tr><th>Date</th><th>Time</th><th class="num">Hours</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+            <% clock.shifts.forEach(sh => { %>
+                <tr><td><%= sh.date %></td><td class="mono"><%= sh.time %></td><td class="num"><%= sh.hours %></td><td class="num">$<%= sh.amount %></td></tr>
+            <% }) %>
+            <% if (!clock.shifts.length) { %><tr><td colspan="4" class="empty">No completed shifts yet this period.</td></tr><% } %>
+        </tbody>
+        <tfoot><tr><td colspan="2">Total</td><td class="num"><%= clock.hours %></td><td class="num">$<%= clock.payout %></td></tr></tfoot>
+    </table>
+    </div>
+    <p class="hint" style="margin:8px 0 22px;">See <a href="/timecards">Past timecards</a> for earlier periods.</p>
     <script>
         (function () {
             var box = document.getElementById("clock");

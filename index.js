@@ -280,10 +280,14 @@ app.get('/dashboard', wrap(async (req, res) => {
                 }
                 const err = req.session.error || null;
                 delete req.session.error;
+                const myPairs = pairShifts(mine, me.hourly_rate);
                 clock = {
+                    rate: parseFloat(me.hourly_rate || 0).toFixed(2),
+                    payout: myPairs.reduce((t, x) => t + parseFloat(x.shift.amount), 0).toFixed(2),
+                    shifts: myPairs.map(x => x.shift).reverse(),
                     status: newest && newest.action === 'CLOCK_IN' ? 'CLOCK_IN' : 'CLOCK_OUT',
                     sinceMs,
-                    hours: pairShifts(mine, me.hourly_rate).reduce((t, s) => t + parseFloat(s.shift.hours), 0).toFixed(2),
+                    hours: myPairs.reduce((t, x) => t + parseFloat(x.shift.hours), 0).toFixed(2),
                     autoNotice: await require('./autoclock').noticeFor(db, req.session.userID).catch(() => null),
                     shiftLimit: await require('./overtime').limitFor(db, req.session.userID).catch(() => null),
                     shiftLimitText: require('./overtime').hrsText(await require('./overtime').limitFor(db, req.session.userID).catch(() => 8)),
