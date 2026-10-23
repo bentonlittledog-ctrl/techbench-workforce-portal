@@ -117,18 +117,24 @@ function mount(app, getDb, wrap) {
         if (!req.session.userID) return res.redirect('/');
         const db = getDb(); await ensure(db);
         const s = req.session, id = parseInt(req.body.employee, 10) || 0, cert = String(req.body.cert || '');
+        // The page sends X-Requested-With: fetch so it can update the box in place (no reload, no jump to the top).
+        const ajax = req.get('X-Requested-With') === 'fetch';
         const back = () => res.redirect('/certifications' + (req.body.back && /^\?[\w=&%.+-]*$/.test(req.body.back) ? req.body.back : ''));
-        if (!BY_KEY[cert]) { flash(req, 'Unknown certification.', true); return back(); }
-        if (!(await mayAward(db, s, id))) { flash(req, 'Only a manager of that account can change its certifications.', true); return back(); }
+        const fail = (msg, code) => { if (ajax) return res.status(code || 400).json({ ok: false, msg }); flash(req, msg, true); return back(); };
+        if (!BY_KEY[cert]) return fail('Unknown certification.');
+        if (!(await mayAward(db, s, id))) return fail('Only a manager of that account can change its certifications.', 403);
         const p = await db.get('SELECT id, name FROM employees WHERE id = ?', [id]);
-        if (!p) return back();
+        if (!p) return fail('That account no longer exists.', 404);
         const had = await db.get('SELECT 1 AS x FROM certifications WHERE employee_id = ? AND cert = ?', [id, cert]);
         const note = String(req.body.note || '').trim().slice(0, 200);
         if (had) await db.run('DELETE FROM certifications WHERE employee_id = ? AND cert = ?', [id, cert]);
         else await db.run('INSERT INTO certifications (employee_id, cert, awarded_by, awarded_name, note) VALUES (?,?,?,?,?)', [id, cert, s.userID, s.name || '', note]);
         await db.run('INSERT INTO audit_log (actor_id, actor_name, target_id, target_name, action, details, reason) VALUES (?,?,?,?,?,?,?)',
             [s.userID, s.name || '', p.id, p.name, had ? 'CERT_REVOKE' : 'CERT_AWARD', (had ? 'Removed ' : 'Awarded ') + nameOf(cert), note]);
-        flash(req, (had ? 'Removed ' : 'Awarded ') + nameOf(cert) + (had ? ' from ' : ' to ') + p.name + '.');
+        const msg = (had ? 'Removed ' : 'Awarded ') + nameOf(cert) + (had ? ' from ' : ' to ') + p.name + '.';
+        if (ajax) return res.json({ ok: true, held: !had, msg,
+            tip: had ? nameOf(cert) + ' — not held' : nameOf(cert) + ' — awarded ' + new Date().toISOString().slice(0, 10) + (s.name ? ' by ' + s.name : '') });
+        flash(req, msg);
         back();
     }));
 }
