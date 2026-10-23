@@ -715,14 +715,16 @@ function mount(app, getDb, wrap, express) {
         const rows = await db.all(
             `SELECT l.*, p.name AS program_name FROM quick_links l LEFT JOIN programs p ON p.id = l.program_id
              WHERE ${v.sql} ${isAdmin(req) ? '' : `AND l.audience = 'all'`} ORDER BY l.group_name, l.sort, l.title`, v.params);
-        const groups = [];
+        // Links marked for management (audience 'admin') get their own Management section, shown only to management accounts.
+        const groups = [], mgmt = [];
         rows.forEach(r => {
-            let g = groups.find(x => x.name === r.group_name);
-            if (!g) { g = { name: r.group_name, items: [] }; groups.push(g); }
+            const list = r.audience === 'admin' ? mgmt : groups;
+            let g = list.find(x => x.name === r.group_name);
+            if (!g) { g = { name: r.group_name, items: [] }; list.push(g); }
             g.items.push({ ...r, editable: isAdmin(req) && canEditProgram(acc, req, r.program_id) });
         });
         res.render('links', {
-            flash: takeFlash(req), isAdmin: isAdmin(req), groups, groupNames: groups.map(g => g.name),
+            flash: takeFlash(req), isAdmin: isAdmin(req), groups, mgmt, groupNames: [...new Set(groups.concat(mgmt).map(g => g.name))],
             progs: isAdmin(req) ? await myPrograms(db, acc) : [], canEveryone: req.session.district === 1
         });
     }));

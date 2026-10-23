@@ -13,17 +13,12 @@
 
     <% if (flash) { %><div class="msg <%= flash.bad ? 'bad' : 'ok' %>" role="status"><%= flash.msg %></div><% } %>
 
-    <% if (!groups.length) { %><div class="panel"><p class="hint">No links yet.</p></div><% } %>
-    <% groups.forEach(g => { %>
-        <div class="panel">
-            <h3><%= g.name %></h3>
-            <div class="linkgrid">
-                <% g.items.forEach(l => { %>
+<% const card = l => { %>
                     <div class="linkcard">
                         <a class="lk" href="<%= l.url %>" target="_blank" rel="noopener"><strong><%= l.title %></strong><% if (l.note) { %><span><%= l.note %></span><% } %></a>
                         <% if (l.editable) { %>
                         <details>
-                            <summary><%= l.audience === 'admin' ? 'Managers only · ' : '' %>Edit</summary>
+                            <summary>Edit</summary>
                             <form action="/links/save" method="POST">
                                 <input type="hidden" name="id" value="<%= l.id %>">
                                 <label>Group</label><input type="text" name="group_name" value="<%= l.group_name %>" maxlength="40" required>
@@ -32,16 +27,33 @@
                                 <label>Note</label><input type="text" name="note" value="<%= l.note %>" maxlength="200">
                                 <label>Program</label>
                                 <select name="program_id"><% if (canEveryone) { %><option value="" <%= l.program_id == null ? 'selected' : '' %>>Everyone (all programs)</option><% } %><% progs.forEach(p => { %><option value="<%= p.id %>" <%= Number(l.program_id) === p.id ? 'selected' : '' %>><%= p.name %></option><% }) %></select>
-                                <label>Who sees it</label>
-                                <select name="audience"><option value="all" <%= l.audience === 'all' ? 'selected' : '' %>>Everyone in that program</option><option value="admin" <%= l.audience === 'admin' ? 'selected' : '' %>>Managers only</option></select>
+                                <label>Section</label>
+                                <select name="audience"><option value="all" <%= l.audience === 'all' ? 'selected' : '' %>>Everyone in that program</option><option value="admin" <%= l.audience === 'admin' ? 'selected' : '' %>>Management only</option></select>
                                 <button type="submit">Save</button>
                             </form>
                             <form action="/links/delete" method="POST"><input type="hidden" name="id" value="<%= l.id %>"><button type="submit" class="btn-ghost" onclick="return confirm('Remove this link?');">Remove link</button></form>
                         </details>
                         <% } %>
                     </div>
-                <% }) %>
-            </div>
+    <% } %>
+
+    <% if (isAdmin) { %>
+    <div class="panel mgmt">
+        <h3>Management <span class="badge warn">Only management can see this</span></h3>
+        <p class="hint">Location coordinators, district administrators, student general managers and student managers see this section. Employees don't.</p>
+        <% if (!mgmt.length) { %><p class="hint">No management links yet. Add one below and choose <strong>Management only</strong>.</p><% } %>
+        <% mgmt.forEach(g => { %>
+            <h4 class="mg"><%= g.name %></h4>
+            <div class="linkgrid"><% g.items.forEach(card) %></div>
+        <% }) %>
+    </div>
+    <% } %>
+
+    <% if (!groups.length && !isAdmin) { %><div class="panel"><p class="hint">No links yet.</p></div><% } %>
+    <% groups.forEach(g => { %>
+        <div class="panel">
+            <h3><%= g.name %></h3>
+            <div class="linkgrid"><% g.items.forEach(card) %></div>
         </div>
     <% }) %>
 
@@ -57,10 +69,11 @@
         </div>
         <label for="program_id">Program</label>
         <select id="program_id" name="program_id"><% if (canEveryone) { %><option value="">Everyone (all programs)</option><% } %><% progs.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %></select>
-        <label for="audience">Who sees it</label>
-        <select id="audience" name="audience"><option value="all">Everyone in that program</option><option value="admin">Managers only</option></select>
+        <label for="audience">Section</label>
+        <select id="audience" name="audience"><option value="all">Everyone in that program</option><option value="admin">Management only</option></select>
         <button type="submit">Add link</button>
     </form>
     <% } %>
+<style>.panel.mgmt{border-left:4px solid var(--warn,#B7791F)}.panel.mgmt h3 .badge{margin-left:8px;vertical-align:middle}.mg{margin:14px 0 8px}</style>
 </body>
 </html>
