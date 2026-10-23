@@ -511,6 +511,7 @@ require('./benchskills')(app, () => db, wrap);
 require('./benchpickup')(app, () => db, wrap);
 require('./ticketimport')(app, () => db, wrap, express);
 require('./profile')(app, () => db, wrap);
+require('./certs')(app, () => db, wrap);
 require('./autoclock')(app, () => db, wrap);
 require('./schedule')(app, () => db, wrap);
 require('./overtime')(app, () => db, wrap);

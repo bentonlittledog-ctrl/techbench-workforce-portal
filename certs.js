@@ -13,6 +13,13 @@ const CERTS = [
     { key: 'foh', short: 'Front of House', name: 'Front of House', group: 'Program', desc: 'Able to run the Front of House software efficiently and demonstrate basic diagnostic procedures.' },
     { key: 'mgmt', short: 'Management', name: 'Management Course', group: 'Program', desc: 'Demonstrates advanced management skills and is able to hold a management position.' }
 ];
+// Study guides for earning certifications (PDFs in learn-pdfs). Evaluator keys are served to managers only.
+const GUIDES = [
+    { title: 'Tier 1 — Basic Repair', file: 'Cert_Tier1_Basic_Repair.pdf', key: 'Cert_Tier1_Basic_Repair_Evaluator_Key.pdf', desc: 'Keyboards, trackpads, bezels, batteries, chargers and the software fixes.' },
+    { title: 'Tier 2 — Challenging Repair', file: 'Cert_Tier2_Challenging_Repair.pdf', key: 'Cert_Tier2_Challenging_Repair_Evaluator_Key.pdf', desc: 'Screens, cameras, hinges, palm rests, display cables.' },
+    { title: 'Tier 3 — Advanced Repair', file: 'Cert_Tier3_Advanced_Repair.pdf', key: 'Cert_Tier3_Advanced_Repair_Evaluator_Key.pdf', desc: 'System boards, daughterboards, heat sinks, liquid damage, transplants.' },
+    { title: 'RA — Reception Agent', file: 'Cert_RA_Reception_Agent.pdf', key: 'Cert_RA_Reception_Agent_Evaluator_Key.pdf', desc: 'Front desk: the Workforce portal, Follett Destiny and Incident IQ.' }
+];
 const BY_KEY = Object.fromEntries(CERTS.map(c => [c.key, c]));
 const REPAIR = CERTS.filter(c => c.rank);
 const nameOf = k => BY_KEY[k] ? BY_KEY[k].name : k;
@@ -99,7 +106,8 @@ function mount(app, getDb, wrap) {
             .filter(r => BY_KEY[r.cert]).map(r => ({ name: nameOf(r.cert), by: r.awarded_name, when: String(r.awarded_at || '').slice(0, 10) }));
         const q = String(req.query.q || '').trim().toLowerCase().slice(0, 60);
         res.render('certifications', {
-            flash: takeFlash(req), certs: CERTS, admin, programs, programId, q, mine,
+            flash: takeFlash(req), certs: CERTS, admin, programs, programId, q, mine, guides: GUIDES,
+            guidesOk: await require('./education').hasResources(db, s).catch(() => false),
             rows: q ? rows.filter(r => String(r.name).toLowerCase().includes(q)) : rows,
             counts: Object.fromEntries(CERTS.map(c => [c.key, rows.filter(r => r.held.has(c.key)).length]))
         });

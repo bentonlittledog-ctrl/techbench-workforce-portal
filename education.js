@@ -676,6 +676,8 @@ function mount(app, getDb, wrap, express) {
     app.get('/learn/pdf/:name', wrap(async (req, res) => {
         if (!req.session.userID) return res.redirect('/');
         if (!PDF_NAME.test(req.params.name)) return res.status(404).end();
+        // Certification answer keys are for managers only.
+        if (/_Evaluator_Key\.pdf$/.test(req.params.name) && req.session.admin !== 1) return res.status(403).send('Managers only.');
         const db = await database();
         if (!(await hasResources(db, req.session))) return res.status(403).send('Not available to your program.');
         res.sendFile(path.join(pdfDir, req.params.name), { headers: { 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' } },

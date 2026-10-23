@@ -19,6 +19,20 @@
         <% } %>
     </div>
 
+    <% if (guidesOk) { %>
+    <div class="panel">
+        <h3>Certification guides</h3>
+        <p class="hint">How to earn each certification: what to study, the skills checklist, the practice log, the knowledge check and the practical exam.</p>
+        <div class="table-wrap"><table>
+            <tbody><% guides.forEach(gd => { %><tr>
+                <td><strong><%= gd.title %></strong><br><span class="hint"><%= gd.desc %></span></td>
+                <td style="white-space:nowrap"><a href="/learn/pdf/<%= gd.file %>" target="_blank" rel="noopener">Open guide</a><% if (admin) { %> &middot; <a href="/learn/pdf/<%= gd.key %>" target="_blank" rel="noopener">Evaluator key</a><% } %></td>
+            </tr><% }) %></tbody>
+        </table></div>
+        <% if (admin) { %><p class="hint">Evaluator keys contain the answers and are only shown to managers.</p><% } %>
+    </div>
+    <% } %>
+
     <% const backQs = (programId ? '?program=' + programId : '') + (q ? (programId ? '&' : '?') + 'q=' + encodeURIComponent(q) : ''); %>
     <div class="panel">
         <form action="/certifications" method="GET" class="searchbar certfilter">
