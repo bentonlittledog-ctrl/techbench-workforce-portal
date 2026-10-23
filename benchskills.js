@@ -17,7 +17,7 @@ async function isMentor(db, session) {
 // May this ticket go to this person? Only matters when "Tier 3 and 4 need a signed-off student" is on.
 async function checkAssign(db, t, assigneeId, session, override) {
     if (!assigneeId) return { ok: true };
-    // Certification gate: Tier 1-2 needs a Basic, Tier 3 a Senior, Tier 4 a Master Repair Specialist (or higher).
+    // Certification gate: a Tier N ticket needs the Tier N repair certification or higher (Tier 4 needs Tier 3).
     let overridden = null;
     if (await L.flag(db, 'bench_gate_certs', false)) {
         const c = await certs.ticketCheck(db, tiers.num(t.tier), assigneeId);

@@ -14,6 +14,7 @@
 
     <div class="panel">
         <h3>My certifications</h3>
+        <% if (myMissing.length) { %><div class="msg bad" style="margin-bottom:10px"><strong>You still need:</strong> <%= required.filter(c => myMissing.includes(c.short)).map(c => c.name).join(', ') %>. Every student must earn these.</div><% } %>
         <% if (!mine.length) { %><p class="hint">None yet. Ask your manager what you need to earn your first one.</p><% } else { %>
         <div class="chips"><% mine.forEach(m => { %><span class="badge ok" title="Awarded <%= m.when %><%= m.by ? ' by ' + m.by : '' %>">&#10003; <%= m.name %></span><% }) %></div>
         <% } %>
@@ -43,18 +44,20 @@
             </select>
             <% } %>
             <input type="search" name="q" value="<%= q %>" placeholder="Find a person" maxlength="60" aria-label="Find a person">
+            <label class="onlymiss"><input type="checkbox" name="missing" value="1" <%= onlyMissing ? 'checked' : '' %> onchange="this.form.submit()"> Only students missing a required one</label>
             <button type="submit">Filter</button>
         </form>
+        <% if (students) { %><p class="hint" style="margin-top:-4px"><strong><%= complete %> of <%= students %></strong> students shown have all required certifications (<%= required.map(c => c.short).join(', ') %>).</p><% } %>
         <% if (!rows.length) { %><p class="hint">Nobody to show.</p><% } else { %>
         <div class="table-wrap"><table class="certtbl">
             <thead>
-                <tr><th rowspan="2">Person</th><th colspan="3" class="c grp">CompTIA</th><th colspan="3" class="c grp">Repair specialist</th><th colspan="3" class="c grp">Program</th></tr>
-                <tr><% certs.forEach(c => { %><th class="c" title="<%= c.name %>"><%= c.short %></th><% }) %></tr>
+                <tr><th rowspan="2">Person</th><% groups.forEach(g => { %><th colspan="<%= g.n %>" class="c grp <%= g.name === 'Required' ? 'req' : '' %>"><%= g.name === 'Required' ? 'Required for every student' : g.name %></th><% }) %></tr>
+                <tr><% certs.forEach(c => { %><th class="c <%= c.required ? 'req' : '' %>" title="<%= c.name %>"><%= c.short %></th><% }) %></tr>
             </thead>
             <tbody><% rows.forEach(p => { %><tr>
-                <td><%= p.name %></td>
+                <td><%= p.name %><% if (p.student) { %><br><span class="need <%= p.missing.length ? '' : 'done' %>" id="need-<%= p.id %>"><%= p.missing.length ? 'Needs: ' + p.missing.join(', ') : 'All required ✓' %></span><% } %></td>
                 <% certs.forEach(c => { const h = p.held.get(c.key); const tip = h ? c.name + ' — awarded ' + String(h.awarded_at || '').slice(0, 10) + (h.awarded_name ? ' by ' + h.awarded_name : '') + (h.note ? ' (' + h.note + ')' : '') : c.name + ' — not held'; %>
-                <td class="c"><% if (p.editable) { %><form action="/certifications/toggle" method="POST" style="margin:0" class="certtoggle" data-cert="<%= c.name %>" data-person="<%= p.name %>"<% if (h) { %> onsubmit="return confirm('Remove <%= c.name %> from <%= p.name.replace(/'/g, '') %>?')"<% } %>>
+                <td class="c <%= c.required ? 'reqcol' : '' %>"><% if (p.editable) { %><form action="/certifications/toggle" method="POST" style="margin:0" class="certtoggle" data-cert="<%= c.name %>" data-person="<%= p.name %>" data-id="<%= p.id %>"<% if (h) { %> onsubmit="return confirm('Remove <%= c.name %> from <%= p.name.replace(/'/g, '') %>?')"<% } %>>
                     <input type="hidden" name="employee" value="<%= p.id %>"><input type="hidden" name="cert" value="<%= c.key %>"><input type="hidden" name="back" value="<%= backQs %>">
                     <button type="submit" class="cellbtn btn-ghost <%= h ? 'on' : '' %>" title="<%= tip %>" aria-label="<%= c.name %> for <%= p.name %>: <%= h ? 'held, click to remove' : 'not held, click to award' %>"><%= h ? '✓' : '' %></button></form>
                 <% } else { %><span class="cellbtn <%= h ? 'on' : '' %>" title="<%= tip %>"><%= h ? '✓' : '' %></span><% } %></td>
@@ -68,9 +71,9 @@
         <h3>What each certification means</h3>
         <div class="table-wrap"><table>
             <thead><tr><th>Certification</th><th>Means</th><th class="c">Holders shown</th></tr></thead>
-            <tbody><% certs.forEach(c => { %><tr><td><strong><%= c.name %></strong></td><td><%= c.desc %></td><td class="c"><%= counts[c.key] %></td></tr><% }) %></tbody>
+            <tbody><% certs.forEach(c => { %><tr><td><strong><%= c.name %></strong><% if (c.required) { %> <span class="badge warn">Required</span><% } %></td><td><%= c.desc %></td><td class="c"><%= counts[c.key] %></td></tr><% }) %></tbody>
         </table></div>
-        <p class="hint">Repair specialist certifications also decide which repair guides open: guides marked for a Senior or Master Repair Specialist open only for people holding that certification or a higher one. Managers can open every guide.</p>
+        <p class="hint">Tier 1, 2 and 3 also decide which repair guides open: a guide marked for Tier 3 opens only for people with Tier 3. Managers can open every guide.</p>
     </div>
 <style>
 .certtbl th.c,.certtbl td.c{text-align:center;padding-left:4px;padding-right:4px}
@@ -109,6 +112,8 @@ span.cellbtn{cursor:default}
                     btn.title = d.tip;
                     btn.setAttribute('aria-label', form.dataset.cert + ' for ' + form.dataset.person + ': ' + (d.held ? 'held, click to remove' : 'not held, click to award'));
                     form.onsubmit = d.held ? function () { return confirm('Remove ' + form.dataset.cert + ' from ' + form.dataset.person + '?'); } : null;
+                    var need = document.getElementById('need-' + form.dataset.id);
+                    if (need && d.missing) { need.textContent = d.missing.length ? 'Needs: ' + d.missing.join(', ') : 'All required \u2713'; need.classList.toggle('done', !d.missing.length); }
                     show(d.msg);
                 })
                 .catch(function () { btn.disabled = false; form.submit(); });   // fall back to the normal page reload
@@ -116,6 +121,9 @@ span.cellbtn{cursor:default}
     });
 })();
 </script>
-<style>#certToast{position:fixed;right:20px;bottom:20px;z-index:50;max-width:360px;box-shadow:0 6px 24px rgba(0,0,0,.18)}</style>
+<style>.need{font-size:12px;font-weight:600;color:var(--bad,#A33A2F)}.need.done{color:var(--ok,#2F7A4B)}
+.certtbl th.req{color:var(--warn,#B7791F)}.certtbl td.reqcol{background:rgba(183,121,31,.06)}
+.onlymiss{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:14px;margin:0}.onlymiss input{width:auto;margin:0}
+#certToast{position:fixed;right:20px;bottom:20px;z-index:50;max-width:360px;box-shadow:0 6px 24px rgba(0,0,0,.18)}</style>
 </body>
 </html>

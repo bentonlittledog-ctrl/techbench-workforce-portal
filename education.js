@@ -205,7 +205,7 @@ const PDF_SECTIONS = {
     }
 };
 
-// Repairs on the district's Tier 3 list (and the heat sink work done with them) need a Senior Repair Specialist.
+// Repairs on the district's Tier 3 list (and the heat sink work done with them) need the Tier 3 certification.
 const SENIOR_TOPICS = ['Motherboard Replacement', 'Daughterboard Replacement', 'Heatsink Replacement'];
 // Device-specific lead-tech repairs (glued tablet: everything behind the screen).
 const SENIOR_BY_DEVICE = {
@@ -365,7 +365,7 @@ function mount(app, getDb, wrap, express) {
                     await db.run('INSERT INTO learn_seeds (key) VALUES (?)', [seedKey]);
                 }
                 // One time only: imported Tier 3 guides (system board, daughterboard, heat sink) and the Duet's lead-tech repairs
-                // need a Senior Repair Specialist. Pages an admin has edited since the import are left alone.
+                // need a higher repair certification. Pages an admin has edited since the import are left alone.
                 if (!(await db.get(`SELECT 1 FROM learn_seeds WHERE key = 'cert-gates-v1'`))) {
                     const t3 = SENIOR_TOPICS.map(() => '?').join(',');
                     await db.run(`UPDATE guides SET min_cert = 'repair_senior' WHERE kind = 'repair' AND updated_by = 'Repair guide import' AND topic IN (${t3})`, SENIOR_TOPICS);
@@ -374,6 +374,11 @@ function mount(app, getDb, wrap, express) {
                             AND device_id = (SELECT id FROM devices WHERE name = ?) AND topic IN (${topics.map(() => '?').join(',')})`, [devName, ...topics]);
                     }
                     await db.run(`INSERT INTO learn_seeds (key) VALUES ('cert-gates-v1')`);
+                }
+                // One time only: the repair certifications became Tier 1/2/3. Imported Tier 3 guides move from Tier 2 to Tier 3.
+                if (!(await db.get(`SELECT 1 FROM learn_seeds WHERE key = 'cert-gates-v2'`))) {
+                    await db.run(`UPDATE guides SET min_cert = 'repair_master' WHERE min_cert = 'repair_senior' AND updated_by = 'Repair guide import'`);
+                    await db.run(`INSERT INTO learn_seeds (key) VALUES ('cert-gates-v2')`);
                 }
             })().catch(err => { ready = null; throw err; });
         }
@@ -494,7 +499,7 @@ function mount(app, getDb, wrap, express) {
             const dev = devices.find(d => d.id === (parseInt(req.query.device, 10) || 0));
             const topic = HARDWARE.concat(SOFTWARE).includes(req.query.topic) ? req.query.topic : '';
             g = { id: 0, kind, device_id: dev ? dev.id : null, program_id: dev ? dev.program_id : (progs[0] ? progs[0].id : null), topic, area: '', title: topic, body: '', video_url: '', link_url: '',
-                min_cert: SENIOR_TOPICS.includes(topic) ? 'repair_senior' : '' };
+                min_cert: SENIOR_TOPICS.includes(topic) ? 'repair_master' : '' };
         }
         res.render('learn_edit', { flash: takeFlash(req), g, devices, progs, canEveryone: req.session.district === 1, HARDWARE, SOFTWARE, AREAS, KINDS, isNew: !id, gates: certs.REPAIR });
     }));
